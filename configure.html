@@ -1068,15 +1068,6 @@ function syncOrderFromDOM() {
   updateOrderBadges();
 }
 
-function moveAddon(url, delta) {
-  const idx = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === url);
-  if (idx < 0) return;
-  const target = idx + delta;
-  if (target < 0 || target >= addons.length) return;
-  [addons[idx], addons[target]] = [addons[target], addons[idx]];
-  renderList(); markChanged();
-}
-
 function togglePin(url) {
   if (pinned.has(url)) { pinned.delete(url); } 
   else {
