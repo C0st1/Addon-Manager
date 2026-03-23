@@ -564,13 +564,39 @@ body {
    RESPONSIVE
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
+  /* Hide extra text to save space for buttons */
   .addon-desc { display: none; }
   .addon-tags { display: none; }
   .header-text p { display: none; }
+  
+  /* Hide the desktop up/down arrows (mobile users can still drag and drop) */
   .move-btns { display: none; }
+  
+  /* Stack the auth input */
   .auth-section { flex-direction: column; align-items: flex-start; }
   .auth-section input { width: 100%; }
+  
+  /* Compact the save bar */
   .save-bar { padding: 10px 14px; }
+  
+  /* NEW: Shrink the addon cards and icons to fit the extra buttons */
+  .addon-card {
+    padding: 10px;
+    gap: 8px;
+  }
+  .addon-icon {
+    width: 32px; height: 32px;
+  }
+  .btn-icon {
+    width: 28px; height: 28px; 
+    font-size: .8rem;
+  }
+  /* Ensure the card actions wrap nicely if the screen is EXTREMELY narrow */
+  .card-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 120px;
+  }
 }
 </style>
 <!-- SortableJS for drag-and-drop (inline CDN — bundled locally for offline use) -->
