@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/manifest.json",   "dest": "/api/manifest.js" },
+    { "src": "/configure",       "dest": "/api/configure.js" },
+    { "src": "/api/health",      "dest": "/api/health.js" },
+    { "src": "/api/addons/get",  "dest": "/api/addons/get.js" },
+    { "src": "/api/addons/set",  "dest": "/api/addons/set.js" },
+    { "src": "/",                "dest": "/api/configure.js" }
+  ]
+}
