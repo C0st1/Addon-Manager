@@ -335,14 +335,6 @@ body {
   flex-shrink: 0;
   align-items: center;
 }
-.move-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.move-btns .btn-icon {
-  width: 26px; height: 22px; font-size: .7rem;
-}
 
 /* Order badge */
 .order-badge {
@@ -568,9 +560,6 @@ body {
   .addon-desc { display: none; }
   .addon-tags { display: none; }
   .header-text p { display: none; }
-  
-  /* Hide the desktop up/down arrows (mobile users can still drag and drop) */
-  .move-btns { display: none; }
   
   /* Stack the auth input */
   .auth-section { flex-direction: column; align-items: flex-start; }
@@ -1021,10 +1010,6 @@ function buildCard(addon, idx) {
       <div class="addon-tags">${tagHtml}</div>
     </div>
     <div class="card-actions">
-      <div class="move-btns">
-        <button class="btn-icon move-up" title="Move up" data-url="${escHtml(url)}">▲</button>
-        <button class="btn-icon move-down" title="Move down" data-url="${escHtml(url)}">▼</button>
-      </div>
       <button class="btn-icon pin ${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin to top'}" data-url="${escHtml(url)}">📌</button>
       
       <button class="btn-icon copy-url" title="Copy manifest URL" data-url="${escHtml(url)}">🔗</button>
@@ -1034,8 +1019,6 @@ function buildCard(addon, idx) {
     </div>`;
 
   // Standard movement & pinning listeners
-  card.querySelector('.move-up').addEventListener('click', e => { e.stopPropagation(); moveAddon(url, -1); });
-  card.querySelector('.move-down').addEventListener('click', e => { e.stopPropagation(); moveAddon(url, 1); });
   card.querySelector('.pin').addEventListener('click', e => { e.stopPropagation(); togglePin(url); });
   
   // New Copy URL listener
