@@ -582,7 +582,6 @@ body {
 <body>
 <div class="app">
 
-  <!-- ── HEADER ─────────────────────────────────────────────── -->
   <div class="header">
     <div class="header-icon">🎬</div>
     <div class="header-text">
@@ -595,19 +594,18 @@ body {
     </div>
   </div>
 
-  <!-- ── AUTH KEY ───────────────────────────────────────────── -->
   <div class="auth-section">
     <div class="auth-indicator" id="authIndicator" title="Connection status"></div>
-    <label for="authKeyInput">Auth Key <span style="color:var(--text-dim)">(optional — for cloud sync)</span></label>
-    <input type="password" id="authKeyInput" placeholder="Paste your Stremio auth key here…" autocomplete="off" />
-    <div class="seg-ctrl" id="sourceCtrl">
-      <button data-src="local" class="active" title="Use the local Stremio desktop server">Local</button>
-      <button data-src="cloud" title="Use Stremio cloud API (requires auth key)">Cloud</button>
-      <button data-src="both"  title="Save to both local and cloud">Both</button>
+    <div style="display: flex; flex-direction: column; flex: 1; gap: 4px;">
+      <label for="authKeyInput">Stremio Auth Key</label>
+      <input type="password" id="authKeyInput" placeholder="Paste your Stremio auth key here…" autocomplete="off" />
+      <span style="font-size: 0.7rem; color: var(--text-dim);">
+        <strong>How to find it:</strong> Open Stremio Desktop → Settings → Account → Scroll down to "Auth Key". 
+        (Your key is securely saved in your browser's local storage).
+      </span>
     </div>
   </div>
 
-  <!-- ── TOOLBAR ────────────────────────────────────────────── -->
   <div class="toolbar">
     <div class="search-wrap">
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -619,32 +617,24 @@ body {
       <button data-grp="none" class="active">All</button>
       <button data-grp="type">By Type</button>
     </div>
-    <button class="btn btn-ghost" id="btnShowDisabled" title="Toggle visibility of disabled addons">👁 Disabled</button>
   </div>
 
-  <!-- ── STATS BAR ──────────────────────────────────────────── -->
   <div class="stats-bar" id="statsBar" style="display:none">
-    <div class="stat">Total <span class="stat-val" id="statTotal">0</span></div>
-    <div class="stat">Active <span class="stat-val" id="statActive">0</span></div>
-    <div class="stat">Disabled <span class="stat-val" id="statDisabled">0</span></div>
+    <div class="stat">Total Addons <span class="stat-val" id="statTotal">0</span></div>
     <div class="stat">Pinned <span class="stat-val" id="statPinned">0</span></div>
   </div>
 
-  <!-- ── ADDON LIST ─────────────────────────────────────────── -->
   <div id="addonList">
     <div class="status-panel" id="emptyState">
       <div class="icon">🔌</div>
       <h3>No addons loaded</h3>
-      <p>Make sure Stremio desktop is running, then click <strong>Refresh</strong>.</p>
+      <p>Enter your Auth Key above, then click <strong>Load Addons</strong>.</p>
       <br/>
       <button class="btn btn-primary" onclick="loadAddons()">Load Addons</button>
     </div>
   </div>
 
-</div><!-- /app -->
-
-<!-- ── SAVE BAR ───────────────────────────────────────────────── -->
-<div class="save-bar" id="saveBar">
+</div><div class="save-bar" id="saveBar">
   <div class="save-bar-text">You have <strong id="changesCount">0</strong> unsaved change(s)</div>
   <button class="btn btn-ghost btn-danger" id="btnDiscard">Discard</button>
   <button class="btn btn-primary" id="btnSave">
@@ -653,10 +643,8 @@ body {
   </button>
 </div>
 
-<!-- ── TOAST ─────────────────────────────────────────────────── -->
 <div id="toast"></div>
 
-<!-- ── BACKUP MODAL ───────────────────────────────────────────── -->
 <div class="modal-backdrop" id="backupModal">
   <div class="modal">
     <h2>📦 Backup & Restore</h2>
@@ -672,7 +660,6 @@ body {
   </div>
 </div>
 
-<!-- ── CONFIRM MODAL ─────────────────────────────────────────── -->
 <div class="modal-backdrop" id="confirmModal">
   <div class="modal">
     <h2 id="confirmTitle">Are you sure?</h2>
@@ -687,34 +674,26 @@ body {
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    STREMIO ADDON MANAGER — client-side application
-   All API calls go to the local Express proxy (this very server)
-   which then forwards them to the Stremio local or cloud API.
 ═══════════════════════════════════════════════════════════════════ */
 
-// Injected by the server — points to the Express app's base URL
 const API_BASE = '__API_BASE__';
 
 // ─── State ────────────────────────────────────────────────────────
-let addons      = [];        // current ordered array of addon objects
-let original    = [];        // snapshot at load time (for change detection)
-let disabled    = new Set(); // transportUrls of "disabled" addons
-let pinned      = new Set(); // transportUrls of "pinned" addons
-let groupMode   = 'none';    // 'none' | 'type'
-let showDisabled= true;
-let sortable    = null;      // SortableJS instance
+let addons      = [];        
+let original    = [];        
+let pinned      = new Set(); 
+let groupMode   = 'none';    
+let sortable    = null;      
 
-// ─── Shortcuts ────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const addonList = $('addonList');
 
-// ─── Source selector ─────────────────────────────────────────────
-let currentSource = 'local';
-document.querySelectorAll('#sourceCtrl button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#sourceCtrl button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentSource = btn.dataset.src;
-  });
+// ─── LocalStorage for Auth Key ────────────────────────────────────
+const savedKey = localStorage.getItem('stremioAuthKey');
+if (savedKey) $('authKeyInput').value = savedKey;
+
+$('authKeyInput').addEventListener('input', (e) => {
+  localStorage.setItem('stremioAuthKey', e.target.value.trim());
 });
 
 // ─── Group selector ───────────────────────────────────────────────
@@ -730,13 +709,6 @@ document.querySelectorAll('#groupCtrl button').forEach(btn => {
 // ─── Search ───────────────────────────────────────────────────────
 $('searchInput').addEventListener('input', () => applyFilter());
 
-// ─── Disabled toggle ─────────────────────────────────────────────
-$('btnShowDisabled').addEventListener('click', () => {
-  showDisabled = !showDisabled;
-  $('btnShowDisabled').textContent = showDisabled ? '👁 Disabled' : '🙈 Disabled';
-  applyFilter();
-});
-
 // ─── Refresh ─────────────────────────────────────────────────────
 $('btnRefresh').addEventListener('click', loadAddons);
 
@@ -747,7 +719,7 @@ $('btnBackup').addEventListener('click', openBackupModal);
 $('btnSave').addEventListener('click', saveAddons);
 $('btnDiscard').addEventListener('click', () => {
   addons = JSON.parse(JSON.stringify(original));
-  disabled.clear(); pinned.clear();
+  pinned.clear();
   renderList();
   hideSaveBar();
   toast('Changes discarded', 'warning');
@@ -757,16 +729,20 @@ $('btnDiscard').addEventListener('click', () => {
    LOAD ADDONS
 ═══════════════════════════════════════════════════════════════════ */
 async function loadAddons() {
+  const authKey = $('authKeyInput').value.trim();
+  if (!authKey) {
+    toast('Please enter your Stremio Auth Key first.', 'warning');
+    return;
+  }
+
   addonList.innerHTML = `<div class="status-panel">
     <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto 16px"></div>
-    <p>Fetching your addon collection…</p>
+    <p>Fetching your addon collection from Cloud…</p>
   </div>`;
   $('statsBar').style.display = 'none';
 
-  const authKey = $('authKeyInput').value.trim();
-
   try {
-    const res  = await apiFetch('/api/addons/get', { authKey, source: currentSource });
+    const res  = await apiFetch('/api/addons/get', { authKey });
     const data = await res.json();
 
     if (!data.ok) throw new Error(data.error || 'Unknown error');
@@ -774,21 +750,16 @@ async function loadAddons() {
     addons   = data.addons || [];
     original = JSON.parse(JSON.stringify(addons));
 
-    // Mark connection indicator as connected
-    $('authIndicator').classList.toggle('connected', !!authKey || currentSource === 'local');
-
+    $('authIndicator').classList.add('connected');
     renderList();
     hideSaveBar();
     toast(`Loaded ${addons.length} addon(s)`, 'success');
   } catch (err) {
+    $('authIndicator').classList.remove('connected');
     addonList.innerHTML = `<div class="status-panel">
       <div class="icon">⚠️</div>
       <h3>Could not load addons</h3>
       <p>${escHtml(err.message)}</p>
-      <br/>
-      <p style="font-size:.78rem;color:var(--text-dim)">
-        Make sure Stremio desktop is running, or switch to Cloud source and enter your auth key.
-      </p>
       <br/>
       <button class="btn btn-primary" onclick="loadAddons()">Try Again</button>
     </div>`;
@@ -809,26 +780,18 @@ function renderList() {
     return;
   }
 
-  // Destroy old sortable
   if (sortable) { try { sortable.destroy(); } catch(e){} sortable = null; }
-
-  // Update stats
   updateStats();
 
-  if (groupMode === 'type') {
-    renderGrouped();
-  } else {
-    renderFlat();
-  }
+  if (groupMode === 'type') renderGrouped();
+  else renderFlat();
 
   applyFilter();
 }
 
 function renderFlat() {
   addonList.innerHTML = '';
-  addons.forEach((addon, idx) => {
-    addonList.appendChild(buildCard(addon, idx));
-  });
+  addons.forEach((addon, idx) => addonList.appendChild(buildCard(addon, idx)));
   initSortable(addonList);
 }
 
@@ -843,10 +806,7 @@ function renderGrouped() {
 
     const hdr = document.createElement('div');
     hdr.className = 'group-header';
-    hdr.innerHTML = `
-      <span class="group-chevron">▾</span>
-      <span class="group-title" style="color:${color}">${label}</span>
-      <span class="group-count">${items.length}</span>`;
+    hdr.innerHTML = `<span class="group-chevron">▾</span><span class="group-title" style="color:${color}">${label}</span><span class="group-count">${items.length}</span>`;
     hdr.addEventListener('click', () => {
       hdr.classList.toggle('collapsed');
       body.classList.toggle('collapsed');
@@ -854,20 +814,16 @@ function renderGrouped() {
 
     const body = document.createElement('div');
     body.className = 'group-body';
-    body.style.display = 'flex';
-    body.style.flexDirection = 'column';
-    body.style.gap = '6px';
+    body.style.display = 'flex'; body.style.flexDirection = 'column'; body.style.gap = '6px';
 
     items.forEach(({ addon, idx }) => body.appendChild(buildCard(addon, idx)));
 
-    section.appendChild(hdr);
-    section.appendChild(body);
+    section.appendChild(hdr); section.appendChild(body);
     addonList.appendChild(section);
     initSortable(body);
   });
 }
 
-/* ── Build a single addon card ── */
 function buildCard(addon, idx) {
   const url     = addon.transportUrl || addon.manifest?.transportUrl || '';
   const man     = addon.manifest || addon;
@@ -878,25 +834,15 @@ function buildCard(addon, idx) {
   const types   = man.types   || [];
   const res     = man.resources || [];
 
-  const isDisabled = disabled.has(url);
   const isPinned   = pinned.has(url);
   const isSelf     = (man.id === 'community.addon-manager');
 
   const card = document.createElement('div');
-  card.className = 'addon-card'
-    + (isDisabled ? ' disabled-addon' : '')
-    + (isPinned   ? ' pinned-addon'   : '');
-  card.dataset.url  = url;
-  card.dataset.idx  = idx;
-  card.dataset.name = name.toLowerCase();
-  card.draggable    = false; // SortableJS handles it
+  card.className = 'addon-card' + (isPinned ? ' pinned-addon' : '');
+  card.dataset.url  = url; card.dataset.idx  = idx; card.dataset.name = name.toLowerCase();
+  card.draggable    = false; 
 
-  // Icon
-  const iconHtml = logo
-    ? `<img src="${escHtml(logo)}" alt="" onerror="this.parentNode.innerHTML='🔌'" loading="lazy"/>`
-    : `<span class="addon-icon-placeholder">🔌</span>`;
-
-  // Tags
+  const iconHtml = logo ? `<img src="${escHtml(logo)}" alt="" onerror="this.parentNode.innerHTML='🔌'" loading="lazy"/>` : `<span class="addon-icon-placeholder">🔌</span>`;
   const allRes   = [...new Set([...types, ...res.map(r => typeof r === 'string' ? r : r.name || '')])];
   const tagHtml  = allRes.slice(0, 4).map(t => `<span class="tag ${tagClass(t)}">${escHtml(t)}</span>`).join('');
 
@@ -911,115 +857,71 @@ function buildCard(addon, idx) {
     </div>
     <div class="addon-icon">${iconHtml}</div>
     <div class="addon-info">
-      <div class="addon-name">
-        ${escHtml(name)}
-        <span class="addon-version">v${escHtml(version)}</span>
-        ${isPinned ? '<span title="Pinned" style="color:var(--pin-color);font-size:.7rem">📌</span>' : ''}
-      </div>
+      <div class="addon-name">${escHtml(name)} <span class="addon-version">v${escHtml(version)}</span> ${isPinned ? '<span title="Pinned" style="color:var(--pin-color);font-size:.7rem">📌</span>' : ''}</div>
       <div class="addon-desc">${escHtml(desc)}</div>
       <div class="addon-tags">${tagHtml}</div>
     </div>
     <div class="card-actions">
       <div class="move-btns">
-        <button class="btn-icon move-up"   title="Move up"   data-url="${escHtml(url)}">▲</button>
+        <button class="btn-icon move-up" title="Move up" data-url="${escHtml(url)}">▲</button>
         <button class="btn-icon move-down" title="Move down" data-url="${escHtml(url)}">▼</button>
       </div>
-      <button class="btn-icon toggle-vis ${isDisabled ? 'disabled-addon' : ''}"
-        title="${isDisabled ? 'Enable' : 'Disable'} addon" data-url="${escHtml(url)}">
-        ${isDisabled ? '◯' : '●'}
-      </button>
-      <button class="btn-icon pin ${isPinned ? 'pinned' : ''}"
-        title="${isPinned ? 'Unpin' : 'Pin to top'}" data-url="${escHtml(url)}">
-        📌
-      </button>
+      <button class="btn-icon pin ${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin to top'}" data-url="${escHtml(url)}">📌</button>
       ${isSelf ? '' : `<button class="btn-icon danger remove" title="Remove addon" data-url="${escHtml(url)}" data-name="${escHtml(name)}">🗑</button>`}
     </div>`;
 
-  // Wire up card action buttons
   card.querySelector('.move-up').addEventListener('click', e => { e.stopPropagation(); moveAddon(url, -1); });
   card.querySelector('.move-down').addEventListener('click', e => { e.stopPropagation(); moveAddon(url, 1); });
-  card.querySelector('.toggle-vis').addEventListener('click', e => { e.stopPropagation(); toggleDisable(url); });
   card.querySelector('.pin').addEventListener('click', e => { e.stopPropagation(); togglePin(url); });
   if (!isSelf) card.querySelector('.remove').addEventListener('click', e => { e.stopPropagation(); confirmRemove(url, name); });
 
   return card;
 }
 
-/* ── Initialise SortableJS on a container ── */
 function initSortable(container) {
   sortable = new Sortable(container, {
-    animation:     200,
-    handle:        '.drag-handle',
-    ghostClass:    'dragging',
-    chosenClass:   'dragging',
-    dragClass:     'dragging',
-    // Don't allow dragging pinned addons
-    filter:        '.pinned-addon',
+    animation: 200, handle: '.drag-handle', ghostClass: 'dragging', chosenClass: 'dragging', dragClass: 'dragging', filter: '.pinned-addon',
     onStart: e => e.item.classList.add('dragging'),
-    onEnd: e => {
-      e.item.classList.remove('dragging');
-      syncOrderFromDOM();
-      markChanged();
-    },
+    onEnd: e => { e.item.classList.remove('dragging'); syncOrderFromDOM(); markChanged(); },
   });
 }
 
-/* ─── Sync addons[] from the current DOM order after a drag ─── */
 function syncOrderFromDOM() {
   const cards = addonList.querySelectorAll('.addon-card');
   const urlToAddon = Object.fromEntries(addons.map(a => [a.transportUrl || a.manifest?.transportUrl, a]));
   const newOrder = [];
-  cards.forEach(card => {
-    const a = urlToAddon[card.dataset.url];
-    if (a) newOrder.push(a);
-  });
-  // Preserve any addons missing from DOM (shouldn't happen, but safety)
+  cards.forEach(card => { const a = urlToAddon[card.dataset.url]; if (a) newOrder.push(a); });
   addons.forEach(a => { if (!newOrder.includes(a)) newOrder.push(a); });
   addons = newOrder;
   updateOrderBadges();
 }
 
-/* ─── Move by keyboard arrows ─── */
 function moveAddon(url, delta) {
   const idx = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === url);
   if (idx < 0) return;
   const target = idx + delta;
   if (target < 0 || target >= addons.length) return;
-  // Skip over pinned
   [addons[idx], addons[target]] = [addons[target], addons[idx]];
-  renderList();
-  markChanged();
-}
-
-function toggleDisable(url) {
-  if (disabled.has(url)) disabled.delete(url); else disabled.add(url);
-  renderList();
-  markChanged();
+  renderList(); markChanged();
 }
 
 function togglePin(url) {
-  if (pinned.has(url)) {
-    pinned.delete(url);
-  } else {
+  if (pinned.has(url)) { pinned.delete(url); } 
+  else {
     pinned.add(url);
-    // Move pinned addon to the top
     const idx = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === url);
     if (idx > 0) { addons.unshift(addons.splice(idx, 1)[0]); }
   }
-  renderList();
-  markChanged();
+  renderList(); markChanged();
 }
 
 function confirmRemove(url, name) {
-  confirm_(`Remove "${name}"?`,
-    `This will remove the addon from your collection. You can always reinstall it later.`,
-    () => removeAddon(url));
+  confirm_(`Remove "${name}"?`, `This will remove the addon from your collection. You can reinstall it later.`, () => removeAddon(url));
 }
 
 function removeAddon(url) {
   addons = addons.filter(a => (a.transportUrl || a.manifest?.transportUrl) !== url);
-  renderList();
-  markChanged();
+  renderList(); markChanged();
   toast(`Addon removed`, 'warning');
 }
 
@@ -1029,15 +931,12 @@ function removeAddon(url) {
 async function saveAddons() {
   const authKey = $('authKeyInput').value.trim();
 
-  // Build the array to send — exclude disabled addons from the live list
-  const toSend = addons.filter(a => !disabled.has(a.transportUrl || a.manifest?.transportUrl));
-
   $('saveBtnText').textContent = 'Saving…';
   $('saveSpinner').style.display = 'inline-block';
   $('btnSave').disabled = true;
 
   try {
-    const res  = await apiFetch('/api/addons/set', { authKey, addons: toSend, source: currentSource });
+    const res  = await apiFetch('/api/addons/set', { authKey, addons });
     const data = await res.json();
 
     if (!data.ok) throw new Error(data.error || 'Save failed');
@@ -1057,68 +956,34 @@ async function saveAddons() {
 /* ═══════════════════════════════════════════════════════════════════
    BACKUP / RESTORE
 ═══════════════════════════════════════════════════════════════════ */
-function openBackupModal() {
-  $('backupText').value = JSON.stringify(addons, null, 2);
-  openModal('backupModal');
-}
-
-$('btnCopyBackup').addEventListener('click', () => {
-  navigator.clipboard.writeText($('backupText').value)
-    .then(() => toast('Copied to clipboard!', 'success'))
-    .catch(() => toast('Copy failed', 'error'));
-});
-
-$('btnDownloadBackup').addEventListener('click', () => {
-  const blob = new Blob([$('backupText').value], { type: 'application/json' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `stremio-addons-backup-${Date.now()}.json`;
-  a.click();
-  toast('Download started', 'success');
-});
-
+function openBackupModal() { $('backupText').value = JSON.stringify(addons, null, 2); openModal('backupModal'); }
+$('btnCopyBackup').addEventListener('click', () => { navigator.clipboard.writeText($('backupText').value).then(() => toast('Copied!', 'success')).catch(() => toast('Copy failed', 'error')); });
+$('btnDownloadBackup').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$('backupText').value], { type: 'application/json' })); a.download = `stremio-addons.json`; a.click(); toast('Download started', 'success'); });
 $('btnRestoreBackup').addEventListener('click', () => {
   try {
     const parsed = JSON.parse($('backupText').value);
     if (!Array.isArray(parsed)) throw new Error('Root must be an array');
-    addons = parsed;
-    renderList();
-    markChanged();
-    closeModal('backupModal');
+    addons = parsed; renderList(); markChanged(); closeModal('backupModal');
     toast(`Restored ${addons.length} addon(s) — click Save to apply`, 'warning');
-  } catch (err) {
-    toast(`Invalid JSON: ${err.message}`, 'error');
-  }
+  } catch (err) { toast(`Invalid JSON: ${err.message}`, 'error'); }
 });
 
 /* ═══════════════════════════════════════════════════════════════════
-   FILTER / SEARCH
+   FILTER / STATS
 ═══════════════════════════════════════════════════════════════════ */
 function applyFilter() {
   const q = $('searchInput').value.toLowerCase().trim();
   const cards = addonList.querySelectorAll('.addon-card');
   cards.forEach(card => {
-    const url        = card.dataset.url;
-    const nameMatch  = card.dataset.name.includes(q);
-    const isDisab    = disabled.has(url);
-    const hide       = !nameMatch || (isDisab && !showDisabled);
+    const hide = !card.dataset.name.includes(q);
     card.classList.toggle('hidden', hide);
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   STATS & CHANGE DETECTION
-═══════════════════════════════════════════════════════════════════ */
 function updateStats() {
-  const total    = addons.length;
-  const disCount = disabled.size;
-  const pinCount = pinned.size;
-  const active   = total - disCount;
-  $('statTotal').textContent    = total;
-  $('statActive').textContent   = active;
-  $('statDisabled').textContent = disCount;
-  $('statPinned').textContent   = pinCount;
-  $('statsBar').style.display = total > 0 ? 'flex' : 'none';
+  $('statTotal').textContent = addons.length;
+  $('statPinned').textContent = pinned.size;
+  $('statsBar').style.display = addons.length > 0 ? 'flex' : 'none';
 }
 
 function markChanged() {
@@ -1130,127 +995,59 @@ function markChanged() {
 function changesCount() {
   if (addons.length !== original.length) return Math.abs(addons.length - original.length);
   let diff = 0;
-  addons.forEach((a, i) => {
-    const o = original[i];
-    if (!o || (a.transportUrl || a.manifest?.transportUrl) !== (o.transportUrl || o.manifest?.transportUrl)) diff++;
-  });
-  return diff + disabled.size;
+  addons.forEach((a, i) => { const o = original[i]; if (!o || (a.transportUrl || a.manifest?.transportUrl) !== (o.transportUrl || o.manifest?.transportUrl)) diff++; });
+  return diff;
 }
 
 function showSaveBar() { $('saveBar').classList.add('visible'); }
 function hideSaveBar()  { $('saveBar').classList.remove('visible'); }
+function updateOrderBadges() { addonList.querySelectorAll('.addon-card').forEach((card, i) => { const badge = card.querySelector('.order-badge'); if (badge) badge.textContent = i + 1; }); }
 
-function updateOrderBadges() {
-  addonList.querySelectorAll('.addon-card').forEach((card, i) => {
-    const badge = card.querySelector('.order-badge');
-    if (badge) badge.textContent = i + 1;
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   GROUPING
-═══════════════════════════════════════════════════════════════════ */
 function groupByType(list) {
   const map = {};
   list.forEach((addon, idx) => {
-    const man   = addon.manifest || addon;
+    const man = addon.manifest || addon;
     const types = [...(man.types || []), ...(man.resources || []).map(r => typeof r === 'string' ? r : r.name || '')];
-    const key   = types.length ? primaryType(types) : 'other';
-    if (!map[key]) map[key] = [];
-    map[key].push({ addon, idx });
+    const key = types.length ? primaryType(types) : 'other';
+    if (!map[key]) map[key] = []; map[key].push({ addon, idx });
   });
   const colorMap = { stream:'#7ab0e8', catalog:'#7ae8b0', meta:'#e87ae8', subtitles:'#e8e87a', other:'#8a88aa' };
   return Object.entries(map).map(([label, items]) => ({ label, items, color: colorMap[label] || '#8a88aa' }));
 }
-
 function primaryType(types) {
-  if (types.includes('stream'))    return 'stream';
-  if (types.includes('catalog'))   return 'catalog';
-  if (types.includes('meta'))      return 'meta';
-  if (types.includes('subtitles')) return 'subtitles';
-  return types[0] || 'other';
+  if (types.includes('stream')) return 'stream'; if (types.includes('catalog')) return 'catalog';
+  if (types.includes('meta')) return 'meta'; if (types.includes('subtitles')) return 'subtitles'; return types[0] || 'other';
 }
-
-function tagClass(t) {
-  if (['stream','catalog','meta','subtitles'].includes(t)) return t;
-  return 'other';
-}
+function tagClass(t) { return ['stream','catalog','meta','subtitles'].includes(t) ? t : 'other'; }
 
 /* ═══════════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════════ */
-async function apiFetch(path, body) {
-  return fetch(API_BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-function escHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+async function apiFetch(path, body) { return fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+function escHtml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 let toastTimer;
-function toast(msg, type = 'info') {
-  const el = $('toast');
-  el.textContent = msg;
-  el.className   = `show ${type}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = ''; }, 3200);
-}
+function toast(msg, type = 'info') { const el = $('toast'); el.textContent = msg; el.className = `show ${type}`; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.className = ''; }, 3200); }
 
 function openModal(id)  { $(id).classList.add('open');    }
 function closeModal(id) { $(id).classList.remove('open'); }
+document.querySelectorAll('.modal-backdrop').forEach(bd => { bd.addEventListener('click', e => { if (e.target === bd) closeModal(bd.id); }); });
 
-// Close modal on backdrop click
-document.querySelectorAll('.modal-backdrop').forEach(bd => {
-  bd.addEventListener('click', e => { if (e.target === bd) closeModal(bd.id); });
-});
-
-// Confirm dialog
 let confirmCallback = null;
-function confirm_(title, body, cb) {
-  $('confirmTitle').textContent = title;
-  $('confirmBody').textContent  = body;
-  confirmCallback = cb;
-  openModal('confirmModal');
-}
-$('confirmOk').addEventListener('click', () => {
-  closeModal('confirmModal');
-  if (confirmCallback) confirmCallback();
-  confirmCallback = null;
-});
-$('confirmCancel').addEventListener('click', () => {
-  closeModal('confirmModal');
-  confirmCallback = null;
-});
+function confirm_(title, body, cb) { $('confirmTitle').textContent = title; $('confirmBody').textContent = body; confirmCallback = cb; openModal('confirmModal'); }
+$('confirmOk').addEventListener('click', () => { closeModal('confirmModal'); if (confirmCallback) confirmCallback(); confirmCallback = null; });
+$('confirmCancel').addEventListener('click', () => { closeModal('confirmModal'); confirmCallback = null; });
 
-/* ═══════════════════════════════════════════════════════════════════
-   SortableJS — load from CDN fallback (inline stub above is a
-   placeholder; we load the real library here)
-═══════════════════════════════════════════════════════════════════ */
 (function loadSortable() {
-  // If the inline stub didn't define a real Sortable, load from CDN
   if (typeof Sortable === 'undefined' || !Sortable.create) {
-    const s   = document.createElement('script');
-    s.src     = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
-    s.onload  = () => { loadAddons(); };
-    s.onerror = () => {
-      // Fallback: stub Sortable so the rest of the app still works (no drag-and-drop)
-      window.Sortable = { create: () => ({ destroy: () => {} }) };
-      toast('Drag-and-drop unavailable (no internet for CDN). Use arrow buttons.', 'warning');
-      loadAddons();
-    };
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+    s.onload = () => { if($('authKeyInput').value) loadAddons(); };
+    s.onerror = () => { window.Sortable = { create: () => ({ destroy: () => {} }) }; toast('Drag-and-drop unavailable. Use arrow buttons.', 'warning'); if($('authKeyInput').value) loadAddons(); };
     document.head.appendChild(s);
-  } else {
+  } else if($('authKeyInput').value) {
     loadAddons();
   }
 })();
 </script>
 </body>
-</html>
