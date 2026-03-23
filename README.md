@@ -1,170 +1,196 @@
 # 🎬 Stremio Addon Manager
 
-A Stremio addon that lets you **reorder, enable/disable, and manage** your installed addons through a beautiful drag-and-drop configure page — all without leaving Stremio.
+A Stremio addon that lets you **reorder and manage** your installed addons through a beautiful drag-and-drop interface — all without leaving Stremio.
 
 ---
 
-## Why?
+## 🚀 Why?
 
-In Stremio, **addon order = stream priority**. The first addon that provides a stream is shown first. Currently, reordering means uninstalling and reinstalling in the right order. This addon fixes that.
+In Stremio, **addon order = stream priority**. The first addon that provides a stream is shown first. Traditionally, reordering requires uninstalling and reinstalling addons in the desired order.
+
+This addon solves that — instantly.
 
 ---
 
-## Features
+## ✨ Features
 
 | Feature | Status |
 |---|---|
+| Login with Stremio Account (Email/Password) | ✅ |
 | Drag-and-drop reordering | ✅ |
 | Move Up / Move Down buttons (keyboard/mobile) | ✅ |
-| Enable / Disable addons (without removing) | ✅ |
 | Pin addons to the top | ✅ |
-| Remove addons | ✅ |
+| Remove addons (protected for core addons) | ✅ |
+| Copy Addon Manifest URL | ✅ |
+| Open Addon Configuration | ✅ |
 | Search / filter by name | ✅ |
 | Group by type (stream, catalog, meta, subtitles) | ✅ |
-| Backup & Restore as JSON | ✅ |
-| Local API (Stremio desktop, no auth needed) | ✅ |
-| Cloud API (cross-device sync with auth key) | ✅ |
-| Dark theme, responsive layout | ✅ |
+| Backup & Restore (JSON) | ✅ |
+| Cloud Sync (cross-device) | ✅ |
+
+> 🔒 **Security Note:**  
+Your Stremio email and password are never stored. They are only used once to securely obtain your Auth Key from Stremio’s API. Only the Auth Key is saved locally in your browser.
 
 ---
 
-## Requirements
+## 📦 Requirements
 
-- **Node.js 18+**
-- For **Local mode**: Stremio desktop running on the same machine
-- For **Cloud mode**: your Stremio auth key (works on any host, including Vercel)
+- Node.js 18+ (if self-hosting)
+- A Stremio account  
+  *(Email & Password or Auth Key)*
 
 ---
 
-## Deployment
+## 🌐 Deployment
 
-### 🚀 Option 1 — Vercel (recommended, free, no server needed)
+### Vercel (Recommended)
 
-> ⚠️ **Cloud mode only on Vercel.** A remote host cannot reach your local `127.0.0.1:11470`. You must use **Cloud** mode with your Stremio auth key.
+Free, fast, and no server maintenance required.
 
-#### Via Vercel CLI
+#### CLI Method
 
 ```bash
-# Install CLI
 npm install -g vercel
 
-# Clone and deploy
 git clone https://github.com/yourname/stremio-addon-manager.git
 cd stremio-addon-manager
+
 vercel        # preview
 vercel --prod # production
 ```
 
-You'll get a URL like `https://stremio-addon-manager.vercel.app`.
+Your app will be available at:
+```
+https://your-app.vercel.app
+```
 
-**Install in Stremio:** `https://your-app.vercel.app/manifest.json`
+Install in Stremio:
+```
+https://your-app.vercel.app/manifest.json
+```
 
-#### Via Vercel Dashboard (no CLI)
+---
 
-1. Push this repo to GitHub
-2. [vercel.com](https://vercel.com) → Add New Project → import your repo
-3. Leave all settings as-is (no build command, no output directory)
+#### Dashboard Method
+
+1. Push the project to GitHub  
+2. Go to https://vercel.com  
+3. Import your repository  
 4. Click **Deploy**
 
 ---
 
-### 🖥 Option 2 — Run locally (Local + Cloud mode)
+### 🖥 Local Setup
 
 ```bash
 git clone https://github.com/yourname/stremio-addon-manager.git
 cd stremio-addon-manager
 npm install
 npm start
-# → http://localhost:7000
 ```
 
-**Install in Stremio:** `http://localhost:7000/manifest.json`
+Open:
+```
+http://localhost:7000
+```
 
-> Make sure Stremio desktop is running before clicking "Load Addons" in Local mode.
-
----
-
-### Finding your auth key
-
-Required for Cloud mode. Find it one of these ways:
-
-**Stremio desktop:** Settings → Account → Auth Key / API Key
-
-**From file:**
-- Windows: `%APPDATA%\stremio\server-settings.json`
-- macOS: `~/Library/Application Support/stremio/server-settings.json`
-- Linux: `~/.config/stremio/server-settings.json`
-
-Copy the value of the `"authKey"` field.
+Install in Stremio:
+```
+http://localhost:7000/manifest.json
+```
 
 ---
 
-## Usage
+## 🧭 Usage
 
-1. Install the addon in Stremio using your manifest URL
-2. Find **Addon Manager** in your addon list
-3. Click **⚙ Configure**
-4. Enter your auth key (cloud) or keep Local mode (desktop only)
-5. Click **Load Addons**
-
-### Reordering
-Drag the ⠿ handle to reorder. Use **▲ / ▼** buttons for keyboard/mobile.
-
-### Pinning
-Click 📌 to pin an addon to the top — it won't move during drag operations.
-
-### Disabling
-Click **●** to disable an addon (keeps it in the list but excludes it when saving).
-
-### Removing
-Click 🗑 to permanently remove an addon. The Addon Manager itself is protected.
-
-### Backup & Restore
-Click **📦 Backup** to export your collection as JSON, download it, or paste a backup to restore.
+1. Install the addon in Stremio  
+2. Open **Addon Manager → Configure**  
+3. Log in using:
+   - Email & Password  
+   - OR Auth Key (manual mode)  
+4. Your addons will load automatically
 
 ---
 
-## Project Structure
+### 🔄 Reordering
+Drag the ⠿ handle to reorder addons.  
+Use ▲ / ▼ buttons for mobile or keyboard navigation.
+
+### 📌 Pinning
+Pin addons to keep them at the top regardless of drag operations.
+
+### 🔗 Quick Actions
+- Copy manifest URL  
+- Open addon configuration  
+- Search and filter addons  
+
+### 🗑 Removing
+Remove addons safely.
+
+> ⚠️ Core addons (e.g. Cinemeta, Local Files, Addon Manager) are protected.
+
+---
+
+## 💾 Backup & Restore
+
+- Export your setup as JSON  
+- Restore anytime on any device  
+
+---
+
+## 🔐 Auth Key (Manual Method)
+
+If you prefer not to use your credentials:
+
+1. Open Stremio
+2. Press `F12` → Console
+3. Run:
+   ```js
+   console.log(JSON.parse(localStorage.getItem('profile')).auth.key)
+   ```
+4. Paste the output into the Addon Manager
+
+---
+
+## 📁 Project Structure
 
 ```
 stremio-addon-manager/
-├── index.js              # Local Express server entry point
-├── configure.html        # Interactive management UI (single HTML file)
-├── vercel.json           # Vercel routing config
+├── index.js
+├── configure.html
+├── vercel.json
 ├── api/
-│   ├── manifest.js       # GET  /manifest.json  (serverless)
-│   ├── configure.js      # GET  /configure      (serverless)
-│   ├── health.js         # GET  /api/health      (serverless)
+│   ├── manifest.js
+│   ├── configure.js
+│   ├── health.js
+│   ├── login.js
 │   └── addons/
-│       ├── get.js        # POST /api/addons/get  (serverless)
-│       └── set.js        # POST /api/addons/set  (serverless)
+│       ├── get.js
+│       └── set.js
 ├── lib/
-│   └── stremioAPI.js     # Stremio local + cloud API helpers
+│   └── stremioAPI.js
 ├── package.json
 └── README.md
 ```
 
 ---
 
-## Troubleshooting
+## 🛠 Troubleshooting
 
-**"Could not load addons" on Vercel**
-→ You must use Cloud mode. Enter your auth key and switch the source selector to Cloud.
+**Login fails**
+→ Verify credentials or use Auth Key if using Google/Facebook login.
 
-**Auth key invalid / 403 error**
-→ Double-check the key from `server-settings.json`. Keys are long alphanumeric strings.
+**Blank configure page**
+→ Open:
+```
+https://your-app.vercel.app/configure
+```
 
-**Configure page shows blank**
-→ Open `https://your-app.vercel.app/configure` directly in a browser to check for errors.
-
-**Changes don't seem to apply**
-→ Some Stremio versions need a restart. Close and reopen Stremio after saving.
-
-**Local mode: "local Stremio server unreachable"**
-→ Make sure Stremio desktop is open and running. Port 11470 must be accessible.
+**Changes not applying**
+→ Restart Stremio after saving.
 
 ---
 
-## License
+## 📜 License
 
 MIT
