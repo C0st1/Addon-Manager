@@ -622,12 +622,27 @@ body {
 
   <div class="auth-section">
     <div class="auth-indicator" id="authIndicator" title="Connection status"></div>
-    <div style="display: flex; flex-direction: column; flex: 1; gap: 6px;">
-      <label for="authKeyInput">Stremio Auth Key</label>
-      <input type="password" id="authKeyInput" placeholder="Paste your Stremio auth key here…" autocomplete="off" />
-      <span style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4;">
-        <strong>How to get your key:</strong> Open Stremio (Web), press <code>F12</code> to open Developer Tools, go to the <strong>Console</strong> tab, paste <code style="background: var(--bg-deep); border: 1px solid var(--border); padding: 2px 5px; border-radius: 4px; color: var(--accent-hi); user-select: all; cursor: pointer;" title="Click to select all">console.log(JSON.parse(localStorage.getItem('profile')).auth.key)</code> and press Enter. (Your key is securely saved in your browser).
-      </span>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+      
+      <div class="seg-ctrl" id="authModeCtrl" style="align-self: flex-start;">
+        <button data-mode="account" class="active">Stremio Account</button>
+        <button data-mode="key">Auth Key</button>
+      </div>
+
+      <div id="loginAccountForm" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <input type="email" id="emailInput" placeholder="Email" style="flex: 1; min-width: 140px; margin: 0;" />
+        <input type="password" id="passwordInput" placeholder="Password" style="flex: 1; min-width: 140px; margin: 0;" />
+        <button class="btn btn-primary" id="btnDoLogin">Login</button>
+        <button class="btn btn-ghost btn-danger" id="btnLogout" style="display: none;">Logout</button>
+      </div>
+
+      <div id="loginKeyForm" style="display: none; flex-direction: column; gap: 6px;">
+        <input type="password" id="authKeyInput" placeholder="Paste your Stremio auth key here…" autocomplete="off" style="margin: 0;" />
+        <span style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.4;">
+          <strong>How to get your key:</strong> Open Stremio (Web or Desktop), press <code>F12</code> to open Developer Tools, go to the <strong>Console</strong> tab, paste <code style="background: var(--bg-deep); border: 1px solid var(--border); padding: 2px 5px; border-radius: 4px; color: var(--accent-hi); user-select: all; cursor: pointer;">console.log(JSON.parse(localStorage.getItem('profile')).auth.key)</code> and press Enter.
+        </span>
+      </div>
+
     </div>
   </div>
 
@@ -737,6 +752,83 @@ $('authKeyInput').addEventListener('input', (e) => {
     $('authIndicator').classList.remove('connected');
   }
 });
+
+// ─── Login / Auth Mode Toggling ───────────────────────────────────
+document.querySelectorAll('#authModeCtrl button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#authModeCtrl button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    const mode = btn.dataset.mode;
+    $('loginAccountForm').style.display = mode === 'account' ? 'flex' : 'none';
+    $('loginKeyForm').style.display = mode === 'key' ? 'flex' : 'none';
+  });
+});
+
+// Update UI if key already exists
+function updateLoginUI() {
+  const hasKey = !!$('authKeyInput').value.trim();
+  if (hasKey) {
+    $('emailInput').style.display = 'none';
+    $('passwordInput').style.display = 'none';
+    $('btnDoLogin').style.display = 'none';
+    $('btnLogout').style.display = 'inline-flex';
+  } else {
+    $('emailInput').style.display = 'block';
+    $('passwordInput').style.display = 'block';
+    $('btnDoLogin').style.display = 'inline-flex';
+    $('btnLogout').style.display = 'none';
+    $('authIndicator').classList.remove('connected');
+  }
+}
+
+// Handle Stremio Login
+$('btnDoLogin').addEventListener('click', async () => {
+  const email = $('emailInput').value.trim();
+  const password = $('passwordInput').value.trim();
+  
+  if (!email || !password) {
+    toast('Please enter email and password', 'warning');
+    return;
+  }
+
+  const btn = $('btnDoLogin');
+  btn.disabled = true;
+  btn.textContent = 'Logging in...';
+
+  try {
+    const res = await apiFetch('/api/login', { email, password });
+    const data = await res.json();
+    
+    if (!data.ok) throw new Error(data.error || 'Login failed');
+    
+    // Save the key, clear passwords, update UI, and load addons
+    $('authKeyInput').value = data.authKey;
+    localStorage.setItem('stremioAuthKey', data.authKey);
+    $('passwordInput').value = ''; 
+    updateLoginUI();
+    toast('Login successful!', 'success');
+    loadAddons();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Login';
+  }
+});
+
+// Handle Logout
+$('btnLogout').addEventListener('click', () => {
+  $('authKeyInput').value = '';
+  localStorage.removeItem('stremioAuthKey');
+  addons = [];
+  renderList();
+  updateLoginUI();
+  toast('Logged out', 'info');
+});
+
+// Run once on startup
+updateLoginUI();
 
 // ─── Group selector ───────────────────────────────────────────────
 document.querySelectorAll('#groupCtrl button').forEach(btn => {
