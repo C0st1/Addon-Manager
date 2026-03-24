@@ -1,10 +1,6 @@
 /**
  * api/addons/get.js
- * Vercel serverless function — fetches the user's addon collection.
- *
- * On Vercel the local Stremio API (127.0.0.1:11470) is unreachable,
- * so we only support the cloud source here.  If someone passes
- * source='local' we return a clear error rather than timing out.
+ * Vercel serverless function — fetches the user's addon collection from the Stremio cloud.
  */
 
 const stremioAPI = require('../../lib/stremioAPI');
