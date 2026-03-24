@@ -690,13 +690,16 @@ body {
 <div class="modal-backdrop" id="backupModal">
   <div class="modal">
     <h2>📦 Backup & Restore</h2>
-    <p>Export your current addon list as JSON, or paste a backup to restore it.</p>
+    <p>Export your current addon list as JSON, or select a backup file to restore it.</p>
     <label>Export / Import JSON</label>
     <textarea id="backupText" rows="8" placeholder="Your addon collection JSON will appear here…"></textarea>
     <div class="modal-actions">
+      <input type="file" id="backupFileInput" accept=".json" style="display: none;" />
+      <button class="btn btn-ghost" id="btnUploadBackup">⬆ Upload File</button>
+      
       <button class="btn btn-ghost" id="btnCopyBackup">Copy</button>
       <button class="btn btn-ghost" id="btnDownloadBackup">⬇ Download</button>
-      <button class="btn btn-primary" id="btnRestoreBackup">↩ Restore from text</button>
+      <button class="btn btn-primary" id="btnRestoreBackup">↩ Restore</button>
       <button class="btn btn-ghost" onclick="closeModal('backupModal')">Close</button>
     </div>
   </div>
@@ -1120,15 +1123,61 @@ async function saveAddons() {
    BACKUP / RESTORE
 ═══════════════════════════════════════════════════════════════════ */
 function openBackupModal() { $('backupText').value = JSON.stringify(addons, null, 2); openModal('backupModal'); }
-$('btnCopyBackup').addEventListener('click', () => { navigator.clipboard.writeText($('backupText').value).then(() => toast('Copied!', 'success')).catch(() => toast('Copy failed', 'error')); });
-$('btnDownloadBackup').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$('backupText').value], { type: 'application/json' })); a.download = `stremio-addons.json`; a.click(); toast('Download started', 'success'); });
+
+$('btnCopyBackup').addEventListener('click', () => { 
+  navigator.clipboard.writeText($('backupText').value)
+    .then(() => toast('Copied!', 'success'))
+    .catch(() => toast('Copy failed', 'error')); 
+});
+
+$('btnDownloadBackup').addEventListener('click', () => { 
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(new Blob([$('backupText').value], { type: 'application/json' })); 
+  a.download = `stremio-addons.json`; 
+  a.click(); 
+  toast('Download started', 'success'); 
+});
+
+// --- NEW: File Upload Logic ---
+$('btnUploadBackup').addEventListener('click', () => {
+  $('backupFileInput').click();
+});
+
+$('backupFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const content = event.target.result;
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) throw new Error('Root must be an array');
+      
+      // Populate the textarea so the user can review before restoring
+      $('backupText').value = JSON.stringify(parsed, null, 2);
+      toast('File loaded! Click Restore to apply.', 'success');
+    } catch (err) {
+      toast(`Invalid JSON file: ${err.message}`, 'error');
+    }
+    // Clear the input so the same file can be uploaded again if needed
+    $('backupFileInput').value = ''; 
+  };
+  reader.readAsText(file);
+});
+
 $('btnRestoreBackup').addEventListener('click', () => {
   try {
     const parsed = JSON.parse($('backupText').value);
     if (!Array.isArray(parsed)) throw new Error('Root must be an array');
-    addons = parsed; renderList(); markChanged(); closeModal('backupModal');
+    addons = parsed; 
+    renderList(); 
+    markChanged(); 
+    closeModal('backupModal');
     toast(`Restored ${addons.length} addon(s) — click Save to apply`, 'warning');
-  } catch (err) { toast(`Invalid JSON: ${err.message}`, 'error'); }
+  } catch (err) { 
+    toast(`Invalid JSON: ${err.message}`, 'error'); 
+  }
 });
 
 /* ═══════════════════════════════════════════════════════════════════
