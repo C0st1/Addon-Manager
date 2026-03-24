@@ -587,6 +587,44 @@ body {
     max-width: 120px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   TOGGLE SWITCHES & CINEMETA MODAL
+═══════════════════════════════════════════════════════ */
+.toggle-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 12px 14px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  margin-bottom: 10px; transition: border-color .2s;
+}
+.toggle-row:hover { border-color: var(--accent); }
+.toggle-info h3 { font-size: .9rem; font-weight: 600; color: var(--text-pri); margin-bottom: 2px; }
+.toggle-info p { font-size: .78rem; color: var(--text-sec); line-height: 1.4; }
+
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; margin-left: 12px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--bg-deep); border: 1px solid var(--border);
+  transition: .3s; border-radius: 22px;
+}
+.slider:before {
+  position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+  background-color: var(--text-sec); transition: .3s; border-radius: 50%;
+}
+input:checked + .slider { background-color: var(--accent); border-color: var(--accent); }
+input:checked + .slider:before { transform: translateX(18px); background-color: #fff; }
+input.danger-toggle:checked + .slider { background-color: var(--danger); border-color: var(--danger); }
+
+.warning-box {
+  background: #cf4f5b15; border-left: 3px solid var(--danger);
+  padding: 12px; border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin-top: 10px; display: none;
+}
+.warning-box.show { display: block; animation: fade-in .3s ease; }
+.warning-box h4 { color: var(--danger); font-size: .85rem; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.warning-box p { color: var(--text-pri); font-size: .78rem; opacity: 0.9; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 <!-- SortableJS for drag-and-drop (inline CDN — bundled locally for offline use) -->
 <script>
@@ -687,20 +725,52 @@ body {
 
 <div id="toast"></div>
 
-<div class="modal-backdrop" id="backupModal">
+<div class="modal-backdrop" id="cinemetaModal">
   <div class="modal">
-    <h2>📦 Backup & Restore</h2>
-    <p>Export your current addon list as JSON, or select a backup file to restore it.</p>
-    <label>Export / Import JSON</label>
-    <textarea id="backupText" rows="8" placeholder="Your addon collection JSON will appear here…"></textarea>
-    <div class="modal-actions">
-      <input type="file" id="backupFileInput" accept=".json" style="display: none;" />
-      <button class="btn btn-ghost" id="btnUploadBackup">⬆ Upload File</button>
-      
-      <button class="btn btn-ghost" id="btnCopyBackup">Copy</button>
-      <button class="btn btn-ghost" id="btnDownloadBackup">⬇ Download</button>
-      <button class="btn btn-primary" id="btnRestoreBackup">↩ Restore</button>
-      <button class="btn btn-ghost" onclick="closeModal('backupModal')">Close</button>
+    <h2>⚙️ Cinemeta Granular Control</h2>
+    <p style="margin-bottom: 20px;">Customize Stremio's default metadata provider.</p>
+    
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <h3>Remove Cinemeta Search</h3>
+        <p>Stops Cinemeta results from appearing when you search.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggleCinemetaSearch">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <h3>Remove Cinemeta Catalogs</h3>
+        <p>Removes Popular, New, and Featured catalogs from your home screen.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggleCinemetaCatalogs">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <h3>Remove Cinemeta Metadata</h3>
+        <p>Stops Cinemeta from providing metadata for your movies and series.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggleCinemetaMeta" class="danger-toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="warning-box" id="cinemetaWarningBox">
+      <h4>⚠️ Critical Warning</h4>
+      <p>Removing Cinemeta metadata will permanently break native Trakt Sync and Calendar functionality across your Stremio clients.</p>
+    </div>
+
+    <div class="modal-actions" style="margin-top: 20px;">
+      <button class="btn btn-ghost" onclick="closeModal('cinemetaModal')">Cancel</button>
+      <button class="btn btn-primary" id="btnApplyCinemeta">Apply Changes</button>
     </div>
   </div>
 </div>
@@ -1018,9 +1088,11 @@ function buildCard(addon, idx) {
       <button class="btn-icon copy-url" title="Copy manifest URL" data-url="${escHtml(url)}">🔗</button>
       ${isConfigurable ? `<button class="btn-icon config-addon" title="Configure addon" data-url="${escHtml(url)}">⚙️</button>` : ''}
       
+      ${addonId.includes('cinemeta') ? `<button class="btn-icon cinemeta-config" title="Cinemeta Advanced Settings" data-url="${escHtml(url)}">🎛️</button>` : ''}
+      
       ${isProtected ? '' : `<button class="btn-icon danger remove" title="Remove addon" data-url="${escHtml(url)}" data-name="${escHtml(name)}">🗑</button>`}
     </div>`;
-
+   
   // Standard movement & pinning listeners
   card.querySelector('.pin').addEventListener('click', e => { e.stopPropagation(); togglePin(url); });
   
@@ -1039,6 +1111,14 @@ function buildCard(addon, idx) {
       // Standard Stremio convention: swap /manifest.json for /configure
       const configUrl = url.replace(/\/manifest\.json$/i, '/configure');
       window.open(configUrl, '_blank');
+    });
+  }
+
+  // NEW: Bind Cinemeta config listener
+  if (addonId.includes('cinemeta')) {
+    card.querySelector('.cinemeta-config').addEventListener('click', e => {
+      e.stopPropagation();
+      openCinemetaSettings(url);
     });
   }
 
@@ -1261,5 +1341,91 @@ $('confirmCancel').addEventListener('click', () => { closeModal('confirmModal');
     loadAddons();
   }
 })();
+
+/* ═══════════════════════════════════════════════════════════════════
+   CINEMETA GRANULAR CONTROL LOGIC
+═══════════════════════════════════════════════════════════════════ */
+let targetCinemetaUrl = null;
+
+// Handle the red warning box visibility
+$('toggleCinemetaMeta').addEventListener('change', (e) => {
+  $('cinemetaWarningBox').classList.toggle('show', e.target.checked);
+});
+
+function openCinemetaSettings(url) {
+  targetCinemetaUrl = url;
+  
+  // Reset toggles (default is off/false)
+  $('toggleCinemetaSearch').checked = false;
+  $('toggleCinemetaCatalogs').checked = false;
+  $('toggleCinemetaMeta').checked = false;
+  $('cinemetaWarningBox').classList.remove('show');
+  
+  // NOTE: If you want to parse the existing manifest to pre-check these boxes
+  // based on previous modifications, you would inspect `addon.manifest` here.
+  
+  openModal('cinemetaModal');
+}
+
+function applyCinemetaPatches(addon, options) {
+  // Deep clone to prevent mutating the React/UI state directly by reference
+  const cloned = structuredClone(addon);
+  const manifest = cloned.manifest;
+
+  if (options.removeSearch) {
+    if (manifest.catalogs) {
+      manifest.catalogs = manifest.catalogs.filter(c => {
+        const hasSearchExtra = c.extra && c.extra.some(e => e.name === 'search');
+        const hasSearchSupported = c.extraSupported && c.extraSupported.includes('search');
+        return !(hasSearchExtra || hasSearchSupported);
+      });
+    }
+    if (manifest.resources) {
+      manifest.resources = manifest.resources.filter(r => (typeof r === 'string' ? r : r.name) !== 'search');
+    }
+  }
+
+  if (options.removeCatalogs) {
+    const targets = ['popular', 'new', 'featured'];
+    if (manifest.catalogs) {
+      manifest.catalogs = manifest.catalogs.filter(c => {
+        const id = (c.id || '').toLowerCase();
+        const name = (c.name || '').toLowerCase();
+        return !targets.some(t => id.includes(t) || name === t);
+      });
+    }
+  }
+
+  if (options.removeMetadata) {
+    if (manifest.resources) {
+      manifest.resources = manifest.resources.filter(r => (typeof r === 'string' ? r : r.name) !== 'meta');
+    }
+  }
+
+  return cloned;
+}
+
+$('btnApplyCinemeta').addEventListener('click', () => {
+  if (!targetCinemetaUrl) return;
+
+  const options = {
+    removeSearch: $('toggleCinemetaSearch').checked,
+    removeCatalogs: $('toggleCinemetaCatalogs').checked,
+    removeMetadata: $('toggleCinemetaMeta').checked
+  };
+
+  // Find the addon in the global array and replace it with the mutated clone
+  const addonIndex = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === targetCinemetaUrl);
+  
+  if (addonIndex !== -1) {
+    addons[addonIndex] = applyCinemetaPatches(addons[addonIndex], options);
+    renderList();
+    markChanged();
+    toast('Cinemeta manifest patched successfully', 'success');
+  }
+
+  closeModal('cinemetaModal');
+  targetCinemetaUrl = null;
+});
 </script>
 </body>
