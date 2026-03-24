@@ -877,29 +877,29 @@ function updateLoginUI() {
   }
 }
 
-// Handle Stremio Login
+// Handle Stremio Login (OPTIMIZED DIRECT-TO-STREMIO)
 $('btnDoLogin').addEventListener('click', async () => {
   const email = $('emailInput').value.trim();
   const password = $('passwordInput').value.trim();
-  
-  if (!email || !password) {
-    toast('Please enter email and password', 'warning');
-    return;
-  }
+  if (!email || !password) { toast('Please enter email and password', 'warning'); return; }
 
   const btn = $('btnDoLogin');
-  btn.disabled = true;
-  btn.textContent = 'Logging in...';
+  btn.disabled = true; btn.textContent = 'Logging in...';
 
   try {
-    const res = await apiFetch('/api/login', { email, password });
+    // FAST BYPASS: Login directly against Stremio
+    const res = await fetch('https://api.strem.io/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, type: 'Login' })
+    });
     const data = await res.json();
     
-    if (!data.ok) throw new Error(data.error || 'Login failed');
+    if (data.error) throw new Error(data.error.message || 'Login failed');
+    if (!data.result || !data.result.authKey) throw new Error('No auth key returned');
     
-    // Save the key, clear passwords, update UI, and load addons
-    $('authKeyInput').value = data.authKey;
-    localStorage.setItem('stremioAuthKey', data.authKey);
+    $('authKeyInput').value = data.result.authKey;
+    localStorage.setItem('stremioAuthKey', data.result.authKey);
     $('passwordInput').value = ''; 
     updateLoginUI();
     toast('Login successful!', 'success');
@@ -907,8 +907,7 @@ $('btnDoLogin').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Login';
+    btn.disabled = false; btn.textContent = 'Login';
   }
 });
 
@@ -957,12 +956,12 @@ $('btnDiscard').addEventListener('click', () => {
 /* ═══════════════════════════════════════════════════════════════════
    LOAD ADDONS
 ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   LOAD ADDONS (OPTIMIZED DIRECT-TO-STREMIO)
+═══════════════════════════════════════════════════════════════════ */
 async function loadAddons() {
   const authKey = $('authKeyInput').value.trim();
-  if (!authKey) {
-    toast('Please enter your Stremio Auth Key first.', 'warning');
-    return;
-  }
+  if (!authKey) { toast('Please enter your Stremio Auth Key first.', 'warning'); return; }
 
   addonList.innerHTML = `<div class="status-panel">
     <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:0 auto 16px"></div>
@@ -971,12 +970,17 @@ async function loadAddons() {
   $('statsBar').style.display = 'none';
 
   try {
-    const res  = await apiFetch('/api/addons/get', { authKey });
+    // FAST BYPASS: Fetch directly from Stremio API
+    const res = await fetch('https://api.strem.io/api/addonCollectionGet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authKey, type: 'AddonCollectionGet' })
+    });
     const data = await res.json();
 
-    if (!data.ok) throw new Error(data.error || 'Unknown error');
+    if (data.error) throw new Error(data.error.message || 'Unknown error');
 
-    addons   = data.addons || [];
+    addons = data.result?.addons || data.addons || [];
     original = JSON.parse(JSON.stringify(addons));
 
     $('authIndicator').classList.add('connected');
@@ -986,16 +990,14 @@ async function loadAddons() {
   } catch (err) {
     $('authIndicator').classList.remove('connected');
     addonList.innerHTML = `<div class="status-panel">
-      <div class="icon">⚠️</div>
-      <h3>Could not load addons</h3>
-      <p>${escHtml(err.message)}</p>
-      <br/>
+      <div class="icon">⚠️</div><h3>Could not load addons</h3>
+      <p>${escHtml(err.message)}</p><br/>
       <button class="btn btn-primary" onclick="loadAddons()">Try Again</button>
     </div>`;
     toast(err.message, 'error');
   }
 }
-
+   
 /* ═══════════════════════════════════════════════════════════════════
    RENDER LIST
 ═══════════════════════════════════════════════════════════════════ */
