@@ -51,8 +51,8 @@ Free, fast, and no server maintenance required.
 ```bash
 npm install -g vercel
 
-git clone https://github.com/yourname/stremio-addon-manager.git
-cd stremio-addon-manager
+git clone https://github.com/yourname/addon-manager.git
+cd addon-manager
 
 vercel        # preview
 vercel --prod # production
@@ -82,8 +82,8 @@ https://your-app.vercel.app/manifest.json
 ### 🖥 Local Setup
 
 ```bash
-git clone https://github.com/yourname/stremio-addon-manager.git
-cd stremio-addon-manager
+git clone https://github.com/yourname/addon-manager.git
+cd addon-manager
 npm install
 npm start
 ```
@@ -153,7 +153,7 @@ If you prefer not to use your credentials:
 ## 📁 Project Structure
 
 ```
-stremio-addon-manager/
+addon-manager/
 ├── index.js
 ├── configure.html
 ├── vercel.json
