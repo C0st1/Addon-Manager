@@ -1306,8 +1306,19 @@ function markChanged() {
 
 function changesCount() {
   if (addons.length !== original.length) return Math.abs(addons.length - original.length);
+  
   let diff = 0;
-  addons.forEach((a, i) => { const o = original[i]; if (!o || (a.transportUrl || a.manifest?.transportUrl) !== (o.transportUrl || o.manifest?.transportUrl)) diff++; });
+  addons.forEach((a, i) => { 
+    const o = original[i]; 
+    const urlA = a.transportUrl || a.manifest?.transportUrl;
+    const urlO = o ? (o.transportUrl || o.manifest?.transportUrl) : null;
+    
+    // Check if the order changed OR if the deep manifest JSON was patched
+    if (!o || urlA !== urlO || JSON.stringify(a.manifest) !== JSON.stringify(o.manifest)) {
+      diff++; 
+    }
+  });
+  
   return diff;
 }
 
