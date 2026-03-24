@@ -1469,24 +1469,41 @@ $('btnResetCinemeta').addEventListener('click', async () => {
   btn.disabled = true;
 
   try {
-    // 1. Fetch the pristine, unpatched manifest straight from Stremio
-    const res = await fetch('https://v3-cinemeta.strem.io/manifest.json');
-    if (!res.ok) throw new Error('Failed to fetch from Stremio');
+    // 1. Ensure the URL is fetchable (fix stremio:// protocol)
+    let fetchUrl = targetCinemetaUrl;
+    if (fetchUrl.startsWith('stremio://')) {
+      fetchUrl = fetchUrl.replace('stremio://', 'https://');
+    }
+    
+    // Fallback to the official endpoint if the URL is completely missing/broken
+    if (!fetchUrl.startsWith('http')) {
+      fetchUrl = 'https://v3-cinemeta.strem.io/manifest.json';
+    }
+
+    // 2. Fetch the pristine manifest from Stremio
+    const res = await fetch(fetchUrl);
+    if (!res.ok) throw new Error('Failed to fetch from Stremio (' + res.status + ')');
     const cleanManifest = await res.json();
 
     const currentIndex = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === targetCinemetaUrl);
 
     if (currentIndex !== -1) {
-      // 2. Overwrite the corrupted/patched manifest with the pristine one
-      addons[currentIndex].manifest = cleanManifest;
+      // 3. Overwrite the corrupted/patched manifest with the pristine one
+      addons[currentIndex] = { ...addons[currentIndex], manifest: cleanManifest };
       
       renderList();
       markChanged();
-      toast('Cinemeta restored to default settings', 'success');
+      
+      // 4. Force the UI to show the Save Bar just in case deep-compare misses it
+      showSaveBar();
+      $('changesCount').textContent = "1+";
+
+      toast('Cinemeta restored! Click Save & Apply.', 'success');
     } else {
       toast('Could not find Cinemeta in your list.', 'error');
     }
   } catch (err) {
+    console.error('Reset error:', err);
     toast('Error resetting: ' + err.message, 'error');
   } finally {
     btn.textContent = originalText;
