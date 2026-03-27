@@ -4,15 +4,7 @@
  */
 const stremioAPI = require('../lib/stremioAPI');
 
-const { Ratelimit } = require("@upstash/ratelimit");
-const { Redis } = require("@upstash/redis");
-const redis = Redis.fromEnv();
-const ratelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m") });
-
 module.exports = async (req, res) => {
-  const ip = req.headers["x-real-ip"] || "127.0.0.1";
-  const { success } = await ratelimit.limit(ip);
-  if (!success) return res.status(429).json({ ok: false, error: "Rate limit exceeded. Try again later." });
   // Handle CORS pre-flight
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -33,19 +25,8 @@ module.exports = async (req, res) => {
 
   try {
     const authKey = await stremioAPI.cloudLogin(email, password);
-    const cookie = require('cookie');
-    res.setHeader('Set-Cookie', cookie.serialize('stremioAuth', authKey, {
-      httpOnly: true, secure: true, maxAge: 60 * 60 * 24 * 7, path: '/'
-    }));
     res.status(200).json({ ok: true, authKey });
   } catch (err) {
-    if (process.env.LOGTAIL_TOKEN) {
-      fetch('https://in.logs.betterstack.com', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.LOGTAIL_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'login_failed', error: err.message, email })
-      }).catch(e => console.error('Logging failed', e));
-    }
     console.error('[LOGIN]', err.message);
     res.status(401).json({ ok: false, error: err.message });
   }
