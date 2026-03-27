@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return; }
 
   const authKey = getAuthKeyFromRequest(req);
-  if (!authKey) { res.status(400).json({ ok: false, error: 'auth required' }); return; }
+  if (!authKey) { res.status(400).json({ ok: false, error: 'No active session found. Login or set your auth key first.' }); return; }
 
   try {
     const { addons } = await cloudGetAddons(authKey);

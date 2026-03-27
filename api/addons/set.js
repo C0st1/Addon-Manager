@@ -43,7 +43,7 @@ module.exports = async (req, res) => {
   if (!authKey) {
     res.status(400).json({
       ok:    false,
-      error: 'An auth key is required to save your addons.',
+      error: 'No active session found. Login or set your auth key first.',
     });
     return;
   }
