@@ -1051,6 +1051,11 @@ async function loadAddons() {
    RENDER LIST
 ═══════════════════════════════════════════════════════════════════ */
 function renderList() {
+   if (typeof Sortable === 'undefined') {
+    console.log('Sortable not ready yet, retrying in 100ms...');
+    setTimeout(renderList, 100);
+    return;
+  }
   if (!addons.length) {
     addonList.innerHTML = `<div class="status-panel" id="emptyState">
       <div class="icon">🔌</div><h3>No addons loaded</h3>
