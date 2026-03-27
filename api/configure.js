@@ -9,9 +9,10 @@ const fs   = require('fs');
 const path = require('path');
 
 module.exports = (req, res) => {
-  const proto   = req.headers['x-forwarded-proto'] || 'https';
-  const host    = req.headers['x-forwarded-host']  || req.headers.host;
-  const baseUrl = `${proto}://${host}`;
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const fallbackUrl = `${proto}://${host}`;
+  const baseUrl = process.env.PUBLIC_API_BASE || fallbackUrl;
 
   const htmlPath = path.join(__dirname, '..', 'configure.html');
   let html;
