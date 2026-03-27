@@ -1,0 +1,41 @@
+const { getAuthKeyFromRequest } = require('../../lib/auth');
+const { cloudGetAddons } = require('../../lib/stremioAPI');
+
+async function pingUrl(url) {
+  if (!url || typeof url !== 'string') return { ok: false, status: null };
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+    clearTimeout(timer);
+    return { ok: res.ok, status: res.status };
+  } catch {
+    return { ok: false, status: null };
+  }
+}
+
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
+  if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return; }
+
+  const authKey = getAuthKeyFromRequest(req);
+  if (!authKey) { res.status(400).json({ ok: false, error: 'auth required' }); return; }
+
+  try {
+    const { addons } = await cloudGetAddons(authKey);
+    const checks = await Promise.all(
+      addons.map(async addon => {
+        const url = addon.transportUrl || addon?.manifest?.transportUrl || '';
+        const result = await pingUrl(url);
+        return { url, ...result };
+      })
+    );
+    res.status(200).json({ ok: true, checks });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};

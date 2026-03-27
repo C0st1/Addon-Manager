@@ -4,6 +4,8 @@
  */
 
 const stremioAPI = require('../../lib/stremioAPI');
+const { getAuthKeyFromRequest } = require('../../lib/auth');
+const { logEvent } = require('../../lib/logger');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin',  '*');
@@ -16,7 +18,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { authKey = '' } = req.body || {};
+  const authKey = getAuthKeyFromRequest(req);
 
   if (!authKey) {
     res.status(400).json({
@@ -30,7 +32,7 @@ module.exports = async (req, res) => {
     const result = await stremioAPI.cloudGetAddons(authKey);
     res.status(200).json({ ok: true, ...result });
   } catch (err) {
-    console.error('[GET addons]', err.message);
+    await logEvent('error', 'addons_get_failed', { message: err.message });
     res.status(500).json({ ok: false, error: err.message });
   }
 };
