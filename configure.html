@@ -1510,7 +1510,9 @@ function buildCard(addon, idx) {
       
       ${addonId.includes('cinemeta') ? `<button class="btn-icon cinemeta-config" title="Cinemeta Advanced Settings" data-url="${escHtml(url)}">🎛️</button>` : ''}
       
-      ${isProtected ? '' : `<button class="btn-icon danger remove" title="Remove addon" data-url="${escHtml(url)}" data-name="${escHtml(name)}">🗑</button>`}
+      ${isProtected
+        ? `<button class="btn-icon danger" title="Core addon cannot be removed" disabled style="opacity:.3;cursor:not-allowed;pointer-events:none;">🗑</button>`
+        : `<button class="btn-icon danger remove" title="Remove addon" data-url="${escHtml(url)}" data-name="${escHtml(name)}">🗑</button>`}
     </div>`;
 
   // Standard movement & pinning listeners
