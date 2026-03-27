@@ -824,6 +824,16 @@ body.light-mode {
 
 const API_BASE = '__API_BASE__';
 
+let toastTimer;
+function toast(msg, type = 'info') { 
+  const el = document.getElementById('toast'); 
+  if (!el) return;
+  el.textContent = msg; 
+  el.className = `show ${type}`; 
+  clearTimeout(toastTimer); 
+  toastTimer = setTimeout(() => { el.className = ''; }, 3200); 
+}
+
 // ─── State ────────────────────────────────────────────────────────
 let addons      = [];        
 let original    = [];        
@@ -1414,9 +1424,6 @@ function tagClass(t) { return ['stream','catalog','meta','subtitles'].includes(t
 ═══════════════════════════════════════════════════════════════════ */
 async function apiFetch(path, body) { return fetch(API_BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 function escHtml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-
-let toastTimer;
-function toast(msg, type = 'info') { const el = $('toast'); el.textContent = msg; el.className = `show ${type}`; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.className = ''; }, 3200); }
 
 function openModal(id)  { $(id).classList.add('open');    }
 function closeModal(id) { $(id).classList.remove('open'); }
