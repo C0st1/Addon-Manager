@@ -1336,6 +1336,23 @@ async function loadAddons() {
     if (!data.ok) throw new Error(data.error || 'Unknown error');
     const cloudAddons = data.addons || [];
     const cloudUrls = new Set(cloudAddons.map(a => a.transportUrl || a.manifest?.transportUrl).filter(Boolean));
+
+    // Reset disabled state on every load — only keep entries that were previously saved
+    // (i.e. their URL is NOT present in the live cloud list, meaning Stremio already excludes them).
+    // This prevents the UI bug where unsaved disables survive a page refresh.
+    const savedDisabledStore = {};
+    const savedDisabledPositions = {};
+    for (const [url, addon] of Object.entries(disabledAddonStore)) {
+      if (!cloudUrls.has(url)) {
+        // This addon is genuinely absent from Stremio's live list → it was saved-disabled
+        savedDisabledStore[url] = addon;
+        savedDisabledPositions[url] = disabledAddonPositions[url];
+      }
+      // If the URL IS in cloudUrls, the addon is active in Stremio → discard the stale disable
+    }
+    disabledAddonStore = savedDisabledStore;
+    disabledAddonPositions = savedDisabledPositions;
+
     const merged = [...cloudAddons];
     const disabledEntries = Object.entries(disabledAddonStore)
       .filter(([url]) => !cloudUrls.has(url))
@@ -1483,7 +1500,10 @@ function buildCard(addon, idx) {
     </div>
     <div class="card-actions">
       <button class="btn-icon pin ${isPinned ? 'pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin to top'}" data-url="${escHtml(url)}">📌</button>
-      <button class="btn-icon toggle-vis ${isDisabled ? 'disabled-addon' : ''}" title="${isDisabled ? 'Enable addon' : 'Temporarily disable addon'}" data-url="${escHtml(url)}">${isDisabled ? iconPowerOff : iconPowerOn}</button>
+      ${isProtected
+        ? `<button class="btn-icon toggle-vis" title="Core addon cannot be disabled" disabled style="opacity:.3;cursor:not-allowed;pointer-events:none;">${iconPowerOn}</button>`
+        : `<button class="btn-icon toggle-vis ${isDisabled ? 'disabled-addon' : ''}" title="${isDisabled ? 'Enable addon' : 'Temporarily disable addon'}" data-url="${escHtml(url)}">${isDisabled ? iconPowerOff : iconPowerOn}</button>`
+      }
       
       <button class="btn-icon copy-url" title="Copy manifest URL" data-url="${escHtml(url)}">🔗</button>
       ${isConfigurable ? `<button class="btn-icon config-addon" title="Configure addon" data-url="${escHtml(url)}">⚙️</button>` : ''}
@@ -1495,7 +1515,9 @@ function buildCard(addon, idx) {
 
   // Standard movement & pinning listeners
   card.querySelector('.pin').addEventListener('click', e => { e.stopPropagation(); togglePin(url); });
-  card.querySelector('.toggle-vis').addEventListener('click', e => { e.stopPropagation(); toggleAddonDisabled(url); });
+  if (!isProtected) {
+    card.querySelector('.toggle-vis').addEventListener('click', e => { e.stopPropagation(); toggleAddonDisabled(url); });
+  }
   
   // New Copy URL listener
   card.querySelector('.copy-url').addEventListener('click', e => {
