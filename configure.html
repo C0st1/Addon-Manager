@@ -841,6 +841,7 @@ let groupMode   = 'none';
 let sortable    = null;      
 let disabledAddons = new Set(JSON.parse(localStorage.getItem('disabledAddons') || '[]'));
 let disabledAddonStore = JSON.parse(localStorage.getItem('disabledAddonStore') || '{}');
+let disabledAddonPositions = JSON.parse(localStorage.getItem('disabledAddonPositions') || '{}');
 const addonHealth = new Map();
 
 const $ = id => document.getElementById(id);
@@ -849,6 +850,7 @@ const addonList = $('addonList');
 function persistDisabledState() {
   localStorage.setItem('disabledAddons', JSON.stringify([...disabledAddons]));
   localStorage.setItem('disabledAddonStore', JSON.stringify(disabledAddonStore));
+  localStorage.setItem('disabledAddonPositions', JSON.stringify(disabledAddonPositions));
 }
 
 // ─── LocalStorage & Auto-Refresh for Auth Key ─────────────────────
@@ -1051,8 +1053,13 @@ async function loadAddons() {
     const cloudAddons = data.addons || [];
     const cloudUrls = new Set(cloudAddons.map(a => a.transportUrl || a.manifest?.transportUrl).filter(Boolean));
     const merged = [...cloudAddons];
-    for (const [url, addon] of Object.entries(disabledAddonStore)) {
-      if (!cloudUrls.has(url)) merged.push(addon);
+    const disabledEntries = Object.entries(disabledAddonStore)
+      .filter(([url]) => !cloudUrls.has(url))
+      .sort((a, b) => (disabledAddonPositions[a[0]] ?? Number.MAX_SAFE_INTEGER) - (disabledAddonPositions[b[0]] ?? Number.MAX_SAFE_INTEGER));
+    for (const [url, addon] of disabledEntries) {
+      const targetIndex = Number.isInteger(disabledAddonPositions[url]) ? disabledAddonPositions[url] : merged.length;
+      const idx = Math.max(0, Math.min(targetIndex, merged.length));
+      merged.splice(idx, 0, addon);
     }
     addons = merged;
     disabledAddons = new Set(Object.keys(disabledAddonStore));
@@ -1272,14 +1279,25 @@ function togglePin(url) {
 }
 
 function toggleAddonDisabled(url) {
+  const currentIndex = addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === url);
+  if (currentIndex === -1) return;
+
   if (disabledAddons.has(url)) {
     disabledAddons.delete(url);
+    const addon = addons.splice(currentIndex, 1)[0];
+    const restoreIndex = Number.isInteger(disabledAddonPositions[url]) ? disabledAddonPositions[url] : addons.length;
+    const targetIndex = Math.max(0, Math.min(restoreIndex, addons.length));
+    addons.splice(targetIndex, 0, addon);
+    delete disabledAddonPositions[url];
     delete disabledAddonStore[url];
   } else {
-    const addon = addons.find(a => (a.transportUrl || a.manifest?.transportUrl) === url);
+    const addon = addons[currentIndex];
     if (addon) {
       disabledAddons.add(url);
       disabledAddonStore[url] = addon;
+      disabledAddonPositions[url] = currentIndex;
+      addons.splice(currentIndex, 1);
+      addons.push(addon);
     }
   }
   persistDisabledState();
@@ -1294,6 +1312,10 @@ function confirmRemove(url, name) {
 
 function removeAddon(url) {
   addons = addons.filter(a => (a.transportUrl || a.manifest?.transportUrl) !== url);
+  disabledAddons.delete(url);
+  delete disabledAddonStore[url];
+  delete disabledAddonPositions[url];
+  persistDisabledState();
   renderList(); markChanged();
   toast(`Addon removed`, 'warning');
 }
@@ -1324,11 +1346,16 @@ async function saveAddons() {
 
     original = JSON.parse(JSON.stringify(addons));
     const nextStore = {};
+    const nextPositions = {};
     disabledAddons.forEach(url => {
       const addon = addons.find(a => (a.transportUrl || a.manifest?.transportUrl) === url);
-      if (addon) nextStore[url] = addon;
+      if (addon) {
+        nextStore[url] = addon;
+        nextPositions[url] = disabledAddonPositions[url] ?? addons.findIndex(a => (a.transportUrl || a.manifest?.transportUrl) === url);
+      }
     });
     disabledAddonStore = nextStore;
+    disabledAddonPositions = nextPositions;
     persistDisabledState();
     hideSaveBar();
     toast('✓ Addon order saved!', 'success');
