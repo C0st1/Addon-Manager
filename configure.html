@@ -1144,7 +1144,7 @@ function buildCard(addon, idx) {
     </div>
     <div class="addon-icon">${iconHtml}</div>
     <div class="addon-info">
-      <div class="addon-name">${escHtml(name)} <span class="addon-version">v${escHtml(version)}</span> ${isPinned ? '<span title="Pinned" style="color:var(--pin-color);font-size:.7rem">📌</span>' : ''}</div>
+      <div class="addon-name">${escHtml(name)} <span class="addon-version">v${escHtml(version)}</span> ${isPinned ? '<span title="Pinned" style="color:var(--pin-color);font-size:.7rem">📌</span>' : ''} ${isProtected ? '<span title="Core Addon (Protected)" style="color:var(--danger);font-size:.7rem;margin-left:4px;">🔒</span>' : ''}</div>
       <div class="addon-desc">${escHtml(desc)}</div>
       <div class="addon-tags">${tagHtml}</div>
     </div>
