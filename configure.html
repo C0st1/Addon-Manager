@@ -1341,9 +1341,7 @@ async function loadAddons() {
       .filter(([url]) => !cloudUrls.has(url))
       .sort((a, b) => (disabledAddonPositions[a[0]] ?? Number.MAX_SAFE_INTEGER) - (disabledAddonPositions[b[0]] ?? Number.MAX_SAFE_INTEGER));
     for (const [url, addon] of disabledEntries) {
-      const targetIndex = Number.isInteger(disabledAddonPositions[url]) ? disabledAddonPositions[url] : merged.length;
-      const idx = Math.max(0, Math.min(targetIndex, merged.length));
-      merged.splice(idx, 0, addon);
+      merged.push(addon);
     }
     addons = merged;
     disabledAddons = new Set(Object.keys(disabledAddonStore));
