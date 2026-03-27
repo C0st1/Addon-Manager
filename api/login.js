@@ -39,6 +39,13 @@ module.exports = async (req, res) => {
     }));
     res.status(200).json({ ok: true, authKey });
   } catch (err) {
+    if (process.env.LOGTAIL_TOKEN) {
+      fetch('https://in.logs.betterstack.com', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.LOGTAIL_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'login_failed', error: err.message, email })
+      }).catch(e => console.error('Logging failed', e));
+    }
     console.error('[LOGIN]', err.message);
     res.status(401).json({ ok: false, error: err.message });
   }
