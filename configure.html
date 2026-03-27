@@ -643,6 +643,26 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
 .warning-box h4 { color: var(--danger); font-size: .85rem; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .warning-box p { color: var(--text-pri); font-size: .78rem; opacity: 0.9; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Backup modal tabs */
+.backup-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.backup-tab {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-sec);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.backup-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.backup-pane { display: none; }
+.backup-pane.active { display: block; }
 </style>
 <!-- SortableJS for drag-and-drop (inline CDN — bundled locally for offline use) -->
 <script>
@@ -748,16 +768,31 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
 <div class="modal-backdrop" id="backupModal">
   <div class="modal">
     <h2>📦 Backup & Restore</h2>
-    <p>Export your current addon list as JSON, or select a backup file to restore it.</p>
-    <label>Export / Import JSON</label>
-    <textarea id="backupText" rows="8" placeholder="Your addon collection JSON will appear here…"></textarea>
+    <p>Use separate tabs for exporting your current setup or importing a backup file.</p>
+    <div class="backup-tabs">
+      <button class="backup-tab active" id="tabBackupExport">Export</button>
+      <button class="backup-tab" id="tabBackupImport">Import</button>
+    </div>
+
+    <div class="backup-pane active" id="backupExportPane">
+      <label>Export JSON</label>
+      <textarea id="backupText" rows="8" placeholder="Your addon collection JSON will appear here…"></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnCopyBackup">Copy</button>
+        <button class="btn btn-primary" id="btnDownloadBackup">⬇ Download</button>
+      </div>
+    </div>
+
+    <div class="backup-pane" id="backupImportPane">
+      <label>Import JSON</label>
+      <textarea id="backupImportText" rows="8" placeholder="Paste backup JSON here or upload a file…"></textarea>
+      <div class="modal-actions">
+        <input type="file" id="backupFileInput" accept=".json" style="display: none;" />
+        <button class="btn btn-ghost" id="btnUploadBackup">⬆ Upload File</button>
+        <button class="btn btn-primary" id="btnRestoreBackup">↩ Restore</button>
+      </div>
+    </div>
     <div class="modal-actions">
-      <input type="file" id="backupFileInput" accept=".json" style="display: none;" />
-      <button class="btn btn-ghost" id="btnUploadBackup">⬆ Upload File</button>
-      
-      <button class="btn btn-ghost" id="btnCopyBackup">Copy</button>
-      <button class="btn btn-ghost" id="btnDownloadBackup">⬇ Download</button>
-      <button class="btn btn-primary" id="btnRestoreBackup">↩ Restore</button>
       <button class="btn btn-ghost" onclick="closeModal('backupModal')">Close</button>
     </div>
   </div>
@@ -1374,7 +1409,26 @@ async function saveAddons() {
 /* ═══════════════════════════════════════════════════════════════════
    BACKUP / RESTORE
 ═══════════════════════════════════════════════════════════════════ */
-function openBackupModal() { $('backupText').value = JSON.stringify(addons, null, 2); openModal('backupModal'); }
+function setBackupTab(tab) {
+  const exportTab = $('tabBackupExport');
+  const importTab = $('tabBackupImport');
+  const exportPane = $('backupExportPane');
+  const importPane = $('backupImportPane');
+  const isExport = tab === 'export';
+  exportTab.classList.toggle('active', isExport);
+  importTab.classList.toggle('active', !isExport);
+  exportPane.classList.toggle('active', isExport);
+  importPane.classList.toggle('active', !isExport);
+}
+
+function openBackupModal() {
+  $('backupText').value = JSON.stringify(addons, null, 2);
+  setBackupTab('export');
+  openModal('backupModal');
+}
+
+$('tabBackupExport').addEventListener('click', () => setBackupTab('export'));
+$('tabBackupImport').addEventListener('click', () => setBackupTab('import'));
 
 $('btnCopyBackup').addEventListener('click', () => { 
   navigator.clipboard.writeText($('backupText').value)
@@ -1406,8 +1460,9 @@ $('backupFileInput').addEventListener('change', (e) => {
       const parsed = JSON.parse(content);
       if (!Array.isArray(parsed)) throw new Error('Root must be an array');
       
-      // Populate the textarea so the user can review before restoring
-      $('backupText').value = JSON.stringify(parsed, null, 2);
+      // Populate import textarea so user can review before restoring
+      $('backupImportText').value = JSON.stringify(parsed, null, 2);
+      setBackupTab('import');
       toast('File loaded! Click Restore to apply.', 'success');
     } catch (err) {
       toast(`Invalid JSON file: ${err.message}`, 'error');
@@ -1420,7 +1475,7 @@ $('backupFileInput').addEventListener('change', (e) => {
 
 $('btnRestoreBackup').addEventListener('click', () => {
   try {
-    const parsed = JSON.parse($('backupText').value);
+    const parsed = JSON.parse($('backupImportText').value);
     if (!Array.isArray(parsed)) throw new Error('Root must be an array');
     addons = parsed; 
     renderList(); 
