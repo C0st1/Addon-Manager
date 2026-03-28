@@ -1,4 +1,5 @@
-const { getAuthKeyFromRequest } = require('../../lib/auth');
+const { getAuthKeyFromRequest, refreshSession } = require('../../lib/auth');
+const { setAuthCors } = require('../../lib/cors');
 const { cloudGetAddons } = require('../../lib/stremioAPI');
 
 async function pingUrl(url) {
@@ -23,14 +24,15 @@ async function pingUrl(url) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setAuthCors(req, res);
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return; }
 
   const authKey = getAuthKeyFromRequest(req);
   if (!authKey) { res.status(400).json({ ok: false, error: 'No active session found. Login or set your auth key first.' }); return; }
+
+  // Sliding session renewal
+  refreshSession(req, res);
 
   try {
     const { addons } = await cloudGetAddons(authKey);
