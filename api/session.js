@@ -4,6 +4,8 @@
  * Validates the key against Stremio's cloud API before issuing a cookie.
  */
 const { setSessionCookie, clearSessionCookie } = require('../lib/auth');
+const { bindSessionToIp } = require('../lib/sessionBinding');
+const { validateCsrfToken } = require('../lib/csrf');
 const { setAuthCors } = require('../lib/cors');
 const { hitRateLimit } = require('../lib/rateLimiter');
 const { logEvent } = require('../lib/logger');
@@ -16,6 +18,13 @@ module.exports = async (req, res) => {
   setAuthCors(req, res);
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return; }
+
+  // CSRF validation (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
+    return;
+  }
 
   if (req.body?.logout) {
     clearSessionCookie(res);
@@ -46,5 +55,6 @@ module.exports = async (req, res) => {
   }
 
   setSessionCookie(res, authKey);
+  bindSessionToIp(ip, authKey);
   res.status(200).json({ ok: true });
 };

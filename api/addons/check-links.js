@@ -1,4 +1,6 @@
 const { getAuthKeyFromRequest, refreshSession } = require('../../lib/auth');
+const { validateSessionIp } = require('../../lib/sessionBinding');
+const { validateCsrfToken } = require('../../lib/csrf');
 const { setAuthCors } = require('../../lib/cors');
 const { cloudGetAddons } = require('../../lib/stremioAPI');
 const { hitRateLimit } = require('../../lib/rateLimiter');
@@ -27,9 +29,10 @@ async function pingUrl(url) {
     return { ok: true, status: null, skipped: true };
   }
 
+  let timer;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
     clearTimeout(timer);
     if (res.status === 405 || res.status === 501) {
@@ -39,6 +42,8 @@ async function pingUrl(url) {
     return { ok: res.ok, status: res.status, skipped: false };
   } catch {
     return { ok: false, status: null, skipped: false };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -49,10 +54,20 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return; }
 
   const authKey = getAuthKeyFromRequest(req);
-  if (!authKey) { res.status(400).json({ ok: false, error: 'No active session found. Login or set your auth key first.' }); return; }
+  if (!authKey) { res.status(401).json({ ok: false, error: 'No active session found. Login or set your auth key first.' }); return; }
 
   // Rate limit check-links requests
   const ip = getClientIp(req);
+  if (!validateSessionIp(ip, authKey)) {
+    res.status(403).json({ ok: false, error: 'Session IP mismatch. Please log in again.' });
+    return;
+  }
+  // CSRF validation (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
+    return;
+  }
   const limit = hitRateLimit(`check-links:${ip}`, { max: 10, windowMs: 60_000 });
   if (limit.limited) {
     res.status(429).json({ ok: false, error: 'Too many check requests. Please retry shortly.' });

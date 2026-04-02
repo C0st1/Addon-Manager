@@ -93,11 +93,22 @@ jest.mock('../lib/errors', () => ({
 
 jest.mock('../lib/securityHeaders', () => ({
   setSecurityHeaders: jest.fn(),
+  generateCspNonce: jest.fn(() => 'test-integration-nonce'),
 }));
 
 jest.mock('../lib/cors', () => ({
   setAuthCors: jest.fn(),
   setPublicCors: jest.fn(),
+}));
+
+jest.mock('../lib/csrf', () => ({
+  generateCsrfToken: jest.fn(() => 'test-csrf-token'),
+  validateCsrfToken: jest.fn(() => true),
+}));
+
+jest.mock('../lib/sessionBinding', () => ({
+  validateSessionIp: jest.fn(() => true),
+  bindSessionToIp: jest.fn(),
 }));
 
 // Mock fs for configure.html
@@ -123,6 +134,7 @@ function makeRes() {
   res.statusCode = null;
   res.status = jest.fn((code) => { res.statusCode = code; return res; });
   res.json = jest.fn((body) => { res.body = body; return res; });
+  res.send = jest.fn((body) => { res.body = body; return res; });
   res.end = jest.fn();
   return res;
 }
@@ -274,13 +286,13 @@ describe('Integration Tests — Full Flows', () => {
       expect(res.body.addons).toHaveLength(3);
     });
 
-    test('get addons without auth returns 400', async () => {
+    test('get addons without auth returns 401', async () => {
       const req = makeReq('POST');
       const res = makeRes();
 
       await addonsGetHandler(req, res);
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(401);
       expect(res.body.ok).toBe(false);
     });
 
@@ -295,13 +307,13 @@ describe('Integration Tests — Full Flows', () => {
       expect(res.body.ok).toBe(true);
     });
 
-    test('set addons without auth returns 400', async () => {
+    test('set addons without auth returns 401', async () => {
       const req = makeReq('POST', { addons: SAMPLE_ADDONS });
       const res = makeRes();
 
       await addonsSetHandler(req, res);
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(401);
     });
 
     test('set addons with invalid data returns 400', async () => {
@@ -376,7 +388,8 @@ describe('Integration Tests — Full Flows', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.checks).toHaveLength(3);
-      expect(res.body.checks.every(c => !c.ok || c.skipped)).toBe(false);
+      // All checks should fail (not ok, not skipped) since fetch rejects
+      expect(res.body.checks.every(c => !c.ok && !c.skipped)).toBe(true);
     });
   });
 

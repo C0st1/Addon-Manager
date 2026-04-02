@@ -7,6 +7,8 @@ const stremioAPI = require('../lib/stremioAPI');
 const { hitRateLimit } = require('../lib/rateLimiter');
 const { logEvent } = require('../lib/logger');
 const { setSessionCookie, clearSessionCookie } = require('../lib/auth');
+const { bindSessionToIp } = require('../lib/sessionBinding');
+const { validateCsrfToken } = require('../lib/csrf');
 const { setAuthCors } = require('../lib/cors');
 const { getClientIp } = require('../lib/ip');
 const { sanitizeError } = require('../lib/errors');
@@ -22,6 +24,13 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // CSRF validation for login (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
+    return;
+  }
+
   if (req.body?.logout) {
     clearSessionCookie(res);
     res.status(200).json({ ok: true });
@@ -29,6 +38,7 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
+
   const limit = hitRateLimit(`login:${ip}`, { max: 10, windowMs: 60_000 });
   if (limit.limited) {
     await logEvent('warn', 'login_rate_limited', { ip });
@@ -51,6 +61,7 @@ module.exports = async (req, res) => {
   try {
     const authKey = await stremioAPI.cloudLogin(email, password);
     setSessionCookie(res, authKey);
+    bindSessionToIp(ip, authKey);
     res.status(200).json({ ok: true });
   } catch (err) {
     const safeErr = sanitizeError(err, 'login');

@@ -57,7 +57,7 @@ describe('api/configure.js', () => {
     delete process.env.PUBLIC_API_BASE;
   });
 
-  test('sets HTML security headers including CSP', () => {
+  test('sets HTML security headers including CSP with nonce', () => {
     const req = mockReq();
     const res = mockRes();
 
@@ -65,6 +65,11 @@ describe('api/configure.js', () => {
 
     expect(res.headers['Content-Security-Policy']).toBeDefined();
     expect(res.headers['Content-Security-Policy']).toContain("default-src 'none'");
+    expect(res.headers['Content-Security-Policy']).toContain("'nonce-");
+    // script-src should NOT have unsafe-inline (style-src still uses it)
+    const scriptSrcMatch = res.headers['Content-Security-Policy'].match(/script-src[^;]+/);
+    expect(scriptSrcMatch).not.toBeNull();
+    expect(scriptSrcMatch[0]).not.toContain("'unsafe-inline'");
     expect(res.headers['X-Frame-Options']).toBe('DENY');
   });
 
@@ -87,5 +92,29 @@ describe('api/configure.js', () => {
     handler(req, res);
 
     expect(res.body).toContain('http://localhost:3000');
+  });
+
+  test('injects CSRF token and CSP nonce into HTML', () => {
+    const req = mockReq();
+    const res = mockRes();
+
+    handler(req, res);
+
+    // CSRF token should be injected (64 hex chars for 32 random bytes)
+    expect(res.body).not.toContain('__CSRF_TOKEN__');
+    // CSP nonce should be injected into script tags
+    expect(res.body).not.toContain('__CSP_NONCE__');
+    // Verify nonce appears in script tags
+    expect(res.body).toMatch(/nonce="[^"]+"/);
+  });
+
+  test('sets CSRF salt cookie', () => {
+    const req = mockReq();
+    const res = mockRes();
+
+    handler(req, res);
+
+    expect(res.headers['Set-Cookie']).toBeDefined();
+    expect(res.headers['Set-Cookie']).toContain('_csrf_salt=');
   });
 });

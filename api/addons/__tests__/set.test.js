@@ -103,7 +103,7 @@ describe('api/addons/set.js', () => {
 
     await handler(req, res);
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(401);
     expect(res.body.error).toContain('No active session');
   });
 
@@ -119,6 +119,7 @@ describe('api/addons/set.js', () => {
 
     expect(res.statusCode).toBe(429);
     expect(res.body.ok).toBe(false);
+    expect(mockLogEvent).toHaveBeenCalledWith('warn', 'addons_set_rate_limited', { ip: '1.2.3.4' });
   });
 
   test('successful save returns 200 with result', async () => {

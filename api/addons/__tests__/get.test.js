@@ -84,7 +84,7 @@ describe('api/addons/get.js', () => {
 
     await handler(req, res);
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(401);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toContain('No active session');
   });

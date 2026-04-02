@@ -5,6 +5,8 @@
 
 const stremioAPI = require('../../lib/stremioAPI');
 const { getAuthKeyFromRequest, refreshSession } = require('../../lib/auth');
+const { validateSessionIp } = require('../../lib/sessionBinding');
+const { validateCsrfToken } = require('../../lib/csrf');
 const { setAuthCors } = require('../../lib/cors');
 const { hitRateLimit } = require('../../lib/rateLimiter');
 const { logEvent } = require('../../lib/logger');
@@ -46,6 +48,35 @@ module.exports = async (req, res) => {
   }
 
   const authKey = getAuthKeyFromRequest(req);
+  if (!authKey) {
+    res.status(401).json({
+      ok:    false,
+      error: 'No active session found. Login or set your auth key first.',
+    });
+    return;
+  }
+
+  const ip = getClientIp(req);
+  if (!validateSessionIp(ip, authKey)) {
+    res.status(403).json({ ok: false, error: 'Session IP mismatch. Please log in again.' });
+    return;
+  }
+
+  // CSRF validation (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
+    return;
+  }
+
+  // Rate limit before body parsing/decompression to prevent DoS via large payloads
+  const limit = hitRateLimit(`set:${ip}`, { max: 50, windowMs: 60_000 });
+  if (limit.limited) {
+    await logEvent('warn', 'addons_set_rate_limited', { ip });
+    res.status(429).json({ ok: false, error: 'Rate limit exceeded. Please retry shortly.' });
+    return;
+  }
+
   let { addons } = req.body || {};
 
   if (!Array.isArray(addons) && req.body?.compressedAddons) {
@@ -69,22 +100,6 @@ module.exports = async (req, res) => {
   // Schema validation
   if (!validateAddonArray(addons)) {
     res.status(400).json({ ok: false, error: 'Invalid addon data. Each addon must have a valid http(s) transportUrl.' });
-    return;
-  }
-
-  if (!authKey) {
-    res.status(400).json({
-      ok:    false,
-      error: 'No active session found. Login or set your auth key first.',
-    });
-    return;
-  }
-
-  const ip = getClientIp(req);
-  const limit = hitRateLimit(`set:${ip}`, { max: 50, windowMs: 60_000 });
-  if (limit.limited) {
-    await logEvent('warn', 'addons_set_rate_limited', { ip, addonsCount: addons.length });
-    res.status(429).json({ ok: false, error: 'Rate limit exceeded. Please retry shortly.' });
     return;
   }
 

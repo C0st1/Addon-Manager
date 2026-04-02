@@ -8,6 +8,8 @@
 
 const stremioAPI = require('../../lib/stremioAPI');
 const { getAuthKeyFromRequest, refreshSession } = require('../../lib/auth');
+const { validateSessionIp } = require('../../lib/sessionBinding');
+const { validateCsrfToken } = require('../../lib/csrf');
 const { setAuthCors } = require('../../lib/cors');
 const { hitRateLimit } = require('../../lib/rateLimiter');
 const { logEvent } = require('../../lib/logger');
@@ -125,6 +127,18 @@ module.exports = async (req, res) => {
   }
 
   const ip = getClientIp(req);
+  if (!validateSessionIp(ip, authKey)) {
+    res.status(403).json({ ok: false, error: 'Session IP mismatch. Please log in again.' });
+    return;
+  }
+
+  // CSRF validation (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
+    return;
+  }
+
   const limit = hitRateLimit(`import:${ip}`, { max: 10, windowMs: 60_000 });
   if (limit.limited) {
     await logEvent('warn', 'import_rate_limited', { ip });

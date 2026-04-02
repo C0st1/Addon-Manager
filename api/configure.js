@@ -7,10 +7,12 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { setSecurityHeaders } = require('../lib/securityHeaders');
+const { setSecurityHeaders, generateCspNonce } = require('../lib/securityHeaders');
+const { generateCsrfToken } = require('../lib/csrf');
 
 module.exports = (req, res) => {
-  setSecurityHeaders(res, 'html');
+  const nonce = generateCspNonce();
+  setSecurityHeaders(res, 'html', { nonce });
 
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
@@ -26,8 +28,12 @@ module.exports = (req, res) => {
     return;
   }
 
-  // Just inject the API Base URL now
-  const injected = html.replace('__API_BASE__', baseUrl);
+  // Generate CSRF token and inject into HTML
+  const csrfToken = generateCsrfToken(req, res);
+  const injected = html
+    .replace(/__API_BASE__/g, baseUrl)
+    .replace(/__CSRF_TOKEN__/g, csrfToken)
+    .replace(/__CSP_NONCE__/g, nonce);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');

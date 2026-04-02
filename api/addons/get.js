@@ -5,8 +5,11 @@
 
 const stremioAPI = require('../../lib/stremioAPI');
 const { getAuthKeyFromRequest, refreshSession } = require('../../lib/auth');
+const { validateSessionIp } = require('../../lib/sessionBinding');
+const { validateCsrfToken } = require('../../lib/csrf');
 const { setAuthCors } = require('../../lib/cors');
 const { logEvent } = require('../../lib/logger');
+const { getClientIp } = require('../../lib/ip');
 const { sanitizeError } = require('../../lib/errors');
 const { setSecurityHeaders } = require('../../lib/securityHeaders');
 
@@ -23,10 +26,23 @@ module.exports = async (req, res) => {
   const authKey = getAuthKeyFromRequest(req);
 
   if (!authKey) {
-    res.status(400).json({
+    res.status(401).json({
       ok:    false,
       error: 'No active session found. Login or set your auth key first.',
     });
+    return;
+  }
+
+  const ip = getClientIp(req);
+  if (!validateSessionIp(ip, authKey)) {
+    res.status(403).json({ ok: false, error: 'Session IP mismatch. Please log in again.' });
+    return;
+  }
+
+  // CSRF validation (skip if no token present — allows non-browser clients)
+  const csrfToken = req.headers['x-csrf-token'];
+  if (csrfToken && !validateCsrfToken(req, csrfToken)) {
+    res.status(403).json({ ok: false, error: 'Invalid CSRF token. Please reload the page and try again.' });
     return;
   }
 
