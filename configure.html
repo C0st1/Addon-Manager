@@ -2299,7 +2299,16 @@ async function saveAddons() {
 
   try {
     const activeAddons = addons.filter(a => !disabledAddons.has(a.transportUrl || a.manifest?.transportUrl));
-    let payload = { addons: activeAddons };
+    // Clean up addons: remove null manifests to prevent Stremio API rejection
+    // Stremio rejects any addon where manifest is explicitly null
+    const cleaned = activeAddons.map(a => {
+      if (a.manifest === null || a.manifest === undefined) {
+        const { manifest, ...rest } = a;
+        return rest;
+      }
+      return a;
+    });
+    let payload = { addons: cleaned };
     if (window.CompressionStream) payload = await buildCompressedPayload(payload);
 
     const res = await fetch(`${API_BASE}/api/addons/set`, {
@@ -3247,12 +3256,18 @@ function renderDiscoverGrid() {
     installBtn.textContent = isInstalled ? t('installed') : t('install');
     installBtn.disabled = isInstalled;
     if (!isInstalled && url) {
-      installBtn.addEventListener('click', (e) => {
+      installBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        installRecommendedAddon(rec, url);
-        installBtn.textContent = t('installed');
         installBtn.disabled = true;
-        installBtn.className = 'btn btn-ghost';
+        installBtn.textContent = '…';
+        const ok = await installRecommendedAddon(rec, url);
+        if (ok) {
+          installBtn.textContent = t('installed');
+          installBtn.className = 'btn btn-ghost';
+        } else {
+          installBtn.textContent = t('install');
+          installBtn.disabled = false;
+        }
         installBtn.style.cssText = 'padding:5px 14px;font-size:.8rem;';
       });
     }
@@ -3262,15 +3277,29 @@ function renderDiscoverGrid() {
   });
 }
 
-function installRecommendedAddon(rec, url) {
-  // Only push the transportUrl — Stremio's API rejects objects with extra/missing fields
-  // (e.g. manifest: null causes "invalid type: null, expected struct Manifest").
-  const addon = { transportUrl: url };
-  addons.push(addon);
+async function installRecommendedAddon(rec, url) {
+  // Stremio's cloud API requires a valid manifest for each addon.
+  // Fetch the manifest from transportUrl + '/manifest.json' before adding.
+  const addonName = rec.name || 'Addon';
+  try {
+    const manifestUrl = url.replace(/\/+$/, '') + '/manifest.json';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(manifestUrl, { method: 'GET', signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const manifest = await res.json();
+    addons.push({ transportUrl: url, manifest });
+  } catch (err) {
+    // If manifest fetch fails, add with transportUrl only as fallback.
+    // Stremio may still resolve it server-side for known addons.
+    console.warn('Could not fetch manifest for ' + addonName + ':', err.message);
+    addons.push({ transportUrl: url });
+  }
   renderList();
   markChanged();
-  const addonName = rec.name || name || 'Addon';
   toast(addonName + ' ' + t('installed').toLowerCase(), 'success');
+  return true;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
