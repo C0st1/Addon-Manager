@@ -4,7 +4,9 @@
  * Public endpoint (no auth required). No rate limit (read-only).
  *
  * GET:  returns all recommendations
- * POST: filters recommendations by query string
+ * POST: { query: string } — filters recommendations by query string
+ * POST: { transportUrl: string } — resolves an addon manifest server-side
+ *       (avoids CORS issues when fetching manifests from addon servers)
  */
 
 const { setSecurityHeaders } = require('../lib/securityHeaders');
@@ -172,7 +174,35 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'POST') {
-      const { query } = req.body || {};
+      const { query, transportUrl } = req.body || {};
+
+      // Resolve manifest for a single addon (server-side, no CORS)
+      if (transportUrl) {
+        if (typeof transportUrl !== 'string' || !/^https?:\/\//i.test(transportUrl)) {
+          res.status(400).json({ ok: false, error: 'Invalid transportUrl.' });
+          return;
+        }
+        try {
+          const manifestUrl = transportUrl.replace(/\/+$/, '') + '/manifest.json';
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 10000);
+          const fetchRes = await fetch(manifestUrl, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' },
+          });
+          clearTimeout(timer);
+          if (!fetchRes.ok) {
+            res.status(200).json({ ok: false, error: `Manifest returned HTTP ${fetchRes.status}` });
+          } else {
+            const manifest = await fetchRes.json();
+            res.status(200).json({ ok: true, manifest });
+          }
+        } catch (err) {
+          res.status(200).json({ ok: false, error: err.name === 'AbortError' ? 'Manifest fetch timed out.' : 'Could not reach addon server.' });
+        }
+        return;
+      }
 
       if (searchRecommendations && typeof searchRecommendations === 'function') {
         const results = searchRecommendations(query);

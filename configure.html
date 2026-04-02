@@ -3282,7 +3282,7 @@ async function installRecommendedAddon(rec, url) {
   // Stremio's cloud API requires a valid manifest for each addon.
   const addonName = rec.name || 'Addon';
   try {
-    const res = await fetch(API_BASE + '/api/addons/resolve-manifest', {
+    const res = await fetch(API_BASE + '/api/recommendations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
