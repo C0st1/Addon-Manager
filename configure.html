@@ -786,6 +786,38 @@ body {
   /* Footer */
   footer { margin-top: 30px !important; }
   footer a { font-size: .78rem !important; }
+
+  /* Header actions — wrap on small screens */
+  .header-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .header-actions .btn-ghost { padding: 6px 8px; font-size: .75rem; }
+  .lang-selector { padding: 4px 6px; font-size: .72rem; }
+
+  /* Profiles dropdown — prevent overflow */
+  .profiles-dropdown { min-width: 200px; right: 0; left: auto; }
+
+  /* Type filter — responsive */
+  .type-filter-bar { gap: 4px; }
+  .type-filter-btn { padding: 5px 8px; font-size: .72rem; }
+
+  /* Nav tabs */
+  .nav-tab { padding: 8px 12px; font-size: .82rem; }
+
+  /* Undo/redo float — avoid save bar overlap */
+  .undo-redo-float { bottom: 64px; right: 12px; }
+
+  /* Preview cards — more vertical space on mobile */
+  .addon-card-preview.open { max-height: 500px; }
+
+  /* Save bar — allow wrapping on very narrow screens */
+  .save-bar { flex-wrap: wrap; }
+
+  /* Toast — avoid save bar overlap */
+  #toast { bottom: 80px; }
+
+  /* Addon card — better touch targets */
+  .addon-card { min-height: 52px; }
+  .card-actions { gap: 2px; }
+  .btn-icon { width: 30px; height: 30px; }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -812,6 +844,15 @@ body {
 
   .seg-ctrl button { padding: 6px 8px; font-size: .72rem; }
   .auth-section { padding: 10px; gap: 8px; }
+}
+
+@media (max-width: 440px) {
+  .header-actions .profiles-wrapper { display: none; }
+  .card-actions { grid-template-columns: repeat(3, 26px); }
+  .btn-icon { width: 26px; height: 26px; font-size: .7rem; }
+  .addon-icon { width: 28px; height: 28px; }
+  .addon-name { font-size: .78rem; }
+  .addon-card-preview.open { max-height: 400px; }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1408,7 +1449,7 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('backupModal')">Close</button>
+      <button class="btn btn-ghost" data-close-modal="backupModal">Close</button>
     </div>
   </div>
 </div>
@@ -1436,7 +1477,7 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
       <div class="import-results" id="importResults"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('importModal')">Close</button>
+      <button class="btn btn-ghost" data-close-modal="importModal">Close</button>
       <button class="btn btn-primary" id="btnDoImport">📥 Import</button>
     </div>
   </div>
@@ -1460,7 +1501,7 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
     <label>Restore from Backup</label>
     <div class="backup-list" id="autoBackupList"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('autoBackupModal')">Close</button>
+      <button class="btn btn-ghost" data-close-modal="autoBackupModal">Close</button>
     </div>
   </div>
 </div>
@@ -1510,7 +1551,7 @@ input.danger-toggle:checked + .slider { background-color: var(--danger); border-
     <div class="modal-actions" style="margin-top: 20px;">
       <button class="btn btn-ghost btn-danger" id="btnResetCinemeta" style="margin-right: auto;">Reset to Defaults</button>
       
-      <button class="btn btn-ghost" onclick="closeModal('cinemetaModal')">Cancel</button>
+      <button class="btn btn-ghost" data-close-modal="cinemetaModal">Cancel</button>
       <button class="btn btn-primary" id="btnApplyCinemeta">Apply Changes</button>
     </div>
   </div>
@@ -2435,7 +2476,12 @@ async function apiFetch(path, body) {
 
 async function runBrokenLinkCheck() {
   try {
-    const res = await apiFetch('/api/addons/check-links', {});
+    const res = await fetch(API_BASE + '/api/addons/check-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Link check failed');
     addonHealth.clear();
@@ -2472,6 +2518,18 @@ function confirm_(title, body, cb) { $('confirmTitle').textContent = title; $('c
 $('confirmOk').addEventListener('click', () => { closeModal('confirmModal'); if (confirmCallback) confirmCallback(); confirmCallback = null; });
 $('confirmCancel').addEventListener('click', () => { closeModal('confirmModal'); confirmCallback = null; });
 
+// Bind all modal close buttons via data attributes (CSP-safe)
+document.querySelectorAll('[data-close-modal]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+});
+
+// Close modals on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const openModal = document.querySelector('.modal-backdrop.open');
+    if (openModal) closeModal(openModal.id);
+  }
+});
 
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2866,7 +2924,7 @@ document.querySelectorAll('#typeFilterBar .type-filter-btn').forEach(btn => {
 const manifestCache = new Map();
 const expandedCards = new Set();
 
-function toggleCardPreview(card, url) {
+function toggleCardPreview(card, url, addon) {
   if (expandedCards.has(url)) {
     expandedCards.delete(url);
     const preview = card.querySelector('.addon-card-preview');
@@ -2879,44 +2937,65 @@ function toggleCardPreview(card, url) {
 
   const preview = document.createElement('div');
   preview.className = 'addon-card-preview open';
-  const loading = document.createElement('div');
-  loading.className = 'preview-loading';
-  loading.innerHTML = '<span class="spinner"></span> <span>' + t('loading') + '</span>';
-  preview.appendChild(loading);
-  card.appendChild(preview);
 
-  fetchManifestPreview(url).then(data => {
-    loading.remove();
-    const content = document.createElement('div');
-    content.className = 'preview-content';
-    const fields = [
-      [t('addonId') || 'ID', data.id || '-'],
-      [t('version') || 'Version', data.version || '-'],
-      ['Description', data.description || '-'],
-      ['Types', (data.types || []).join(', ') || '-'],
-      ['Catalogs', (data.catalogCount || 0) + ''],
-      ['Resources', (data.resourceCount || 0) + ''],
-      ['URL', data.url || '-'],
-    ];
-    fields.forEach(([label, value]) => {
-      const lbl = document.createElement('div');
-      lbl.className = 'preview-field-label';
-      lbl.textContent = label;
-      content.appendChild(lbl);
-      const val = document.createElement('div');
-      val.className = 'preview-field-value';
-      val.textContent = String(value);
-      content.appendChild(val);
+  // Use already-loaded manifest data first, avoid CORS issues
+  const man = addon?.manifest || {};
+  const localData = {
+    id: man.id || '',
+    version: man.version || '',
+    description: man.description || man.shortDescription || '',
+    types: man.types || [],
+    catalogCount: (man.catalogs || []).length,
+    resourceCount: (man.resources || []).length,
+    url: url,
+  };
+
+  // Only show loading spinner if we have no local data at all
+  if (localData.id || localData.version || localData.description) {
+    renderPreviewContent(preview, localData);
+  } else {
+    const loading = document.createElement('div');
+    loading.className = 'preview-loading';
+    loading.innerHTML = '<span class="spinner"></span> <span>' + t('loading') + '</span>';
+    preview.appendChild(loading);
+    fetchManifestPreview(url).then(data => {
+      loading.remove();
+      renderPreviewContent(preview, data);
+    }).catch(() => {
+      loading.remove();
+      const errMsg = document.createElement('div');
+      errMsg.className = 'preview-loading';
+      errMsg.textContent = 'Could not load manifest info';
+      errMsg.style.color = 'var(--text-dim)';
+      preview.appendChild(errMsg);
     });
-    preview.appendChild(content);
-  }).catch(() => {
-    loading.remove();
-    const errMsg = document.createElement('div');
-    errMsg.className = 'preview-loading';
-    errMsg.textContent = 'Could not load manifest info';
-    errMsg.style.color = 'var(--text-dim)';
-    preview.appendChild(errMsg);
+  }
+  card.appendChild(preview);
+}
+
+function renderPreviewContent(preview, data) {
+  const content = document.createElement('div');
+  content.className = 'preview-content';
+  const fields = [
+    [t('addonId') || 'ID', data.id || '-'],
+    [t('version') || 'Version', data.version || '-'],
+    ['Description', data.description || '-'],
+    ['Types', (data.types || []).join(', ') || '-'],
+    ['Catalogs', (data.catalogCount || 0) + ''],
+    ['Resources', (data.resourceCount || 0) + ''],
+    ['URL', data.url || '-'],
+  ];
+  fields.forEach(([label, value]) => {
+    const lbl = document.createElement('div');
+    lbl.className = 'preview-field-label';
+    lbl.textContent = label;
+    content.appendChild(lbl);
+    const val = document.createElement('div');
+    val.className = 'preview-field-value';
+    val.textContent = String(value);
+    content.appendChild(val);
   });
+  preview.appendChild(content);
 }
 
 async function fetchManifestPreview(url) {
@@ -2940,9 +3019,8 @@ async function fetchManifestPreview(url) {
     manifestCache.set(url, data);
     return data;
   } catch {
-    const data = { id: '', version: '', description: '', types: [], catalogCount: 0, resourceCount: 0, url };
-    manifestCache.set(url, data);
-    return data;
+    // Don't cache failures — allow retry next time
+    return { id: '', version: '', description: '', types: [], catalogCount: 0, resourceCount: 0, url };
   }
 }
 
@@ -3102,7 +3180,12 @@ let lastHealthCheckTime = parseInt(localStorage.getItem('lastHealthCheckTime') |
 const originalRunBrokenLinkCheck = runBrokenLinkCheck;
 runBrokenLinkCheck = async function() {
   try {
-    const res = await apiFetch('/api/addons/check-links', {});
+    const res = await fetch(API_BASE + '/api/addons/check-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Link check failed');
     addonHealth.clear();
@@ -3302,7 +3385,7 @@ buildCard = function(addon, idx) {
   // Make card expandable on click (not on buttons)
   card.addEventListener('click', (e) => {
     if (e.target.closest('.card-actions') || e.target.closest('.drag-handle')) return;
-    toggleCardPreview(card, url);
+    toggleCardPreview(card, url, addon);
   });
 
   // Add health trend indicator to name
