@@ -1,12 +1,7 @@
-/**
- * Tests for the /api/health endpoint, which is now handled by api/manifest.js.
- * The handler routes based on req.url — /api/health triggers the health response.
- */
+const handler = require('../health');
 
-const handler = require('../manifest');
-
-function mockReq(url) {
-  return { headers: {}, method: 'GET', url: url || '/api/health' };
+function mockReq() {
+  return { headers: {}, method: 'GET' };
 }
 
 function mockRes() {
@@ -19,7 +14,7 @@ function mockRes() {
   return res;
 }
 
-describe('api/health (via api/manifest.js)', () => {
+describe('api/health.js', () => {
   beforeEach(() => {
     delete process.env.VERCEL;
     delete process.env.NODE_ENV;
@@ -82,25 +77,5 @@ describe('api/health (via api/manifest.js)', () => {
     handler(req, res);
 
     expect(res.body.environment).toBe('development');
-  });
-
-  test('health endpoint works with trailing slash', () => {
-    const req = mockReq('/api/health/');
-    const res = mockRes();
-
-    handler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.ok).toBe(true);
-  });
-
-  test('health endpoint works with query string', () => {
-    const req = mockReq('/api/health?foo=bar');
-    const res = mockRes();
-
-    handler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.ok).toBe(true);
   });
 });
