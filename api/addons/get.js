@@ -12,7 +12,6 @@ const { logEvent } = require('../../lib/logger');
 const { getClientIp } = require('../../lib/ip');
 const { sanitizeError } = require('../../lib/errors');
 const { setSecurityHeaders } = require('../../lib/securityHeaders');
-const { sanitizeAddons } = require('../../lib/sanitizeAddons');
 
 module.exports = async (req, res) => {
   setSecurityHeaders(res);
@@ -52,9 +51,7 @@ module.exports = async (req, res) => {
 
   try {
     const result = await stremioAPI.cloudGetAddons(authKey);
-    // Sanitize: strip null/undefined manifest fields from addons loaded from cloud.
-    const addons = sanitizeAddons(result.addons || []);
-    res.status(200).json({ ok: true, addons });
+    res.status(200).json({ ok: true, ...result });
   } catch (err) {
     const safeErr = sanitizeError(err, 'addonGet');
     await logEvent('error', 'addons_get_failed', { message: err.message });

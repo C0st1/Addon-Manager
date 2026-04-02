@@ -1640,7 +1640,7 @@ $('authKeyInput').addEventListener('input', (e) => {
   if (val.length > 40) {
     authKeyTimeout = setTimeout(() => {
       bindSessionFromKey(val).then(() => { loggedIn = true; updateLoginUI(); return loadAddons(); }).catch(err => toast(err.message, 'error'));
-    }, 800); // Debounce 800ms after the user stops typing
+    }, 800); // Wait 600ms after they finish pasting/typing to prevent spamming
   } else if (val.length === 0) {
     // Optional: Clear the list if they delete the key
     addons = [];
@@ -1728,7 +1728,7 @@ $('btnLogout').addEventListener('click', async () => {
       credentials: 'include',
       body: JSON.stringify({ logout: true }),
     });
-  } catch (err) { console.warn('Logout failed:', err.message); }
+  } catch {}
   $('authKeyInput').value = '';
   loggedIn = false;
   addons = [];
@@ -1825,6 +1825,9 @@ $('btnDiscard').addEventListener('click', () => {
 
 /* ═══════════════════════════════════════════════════════════════════
    LOAD ADDONS
+═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   LOAD ADDONS (OPTIMIZED DIRECT-TO-STREMIO)
 ═══════════════════════════════════════════════════════════════════ */
 async function loadAddons() {
   addonList.innerHTML = `<div class="status-panel">
@@ -2296,16 +2299,7 @@ async function saveAddons() {
 
   try {
     const activeAddons = addons.filter(a => !disabledAddons.has(a.transportUrl || a.manifest?.transportUrl));
-    // Clean up addons: remove null manifests to prevent Stremio API rejection
-    // Stremio rejects any addon where manifest is explicitly null
-    const cleaned = activeAddons.map(a => {
-      if (a.manifest === null || a.manifest === undefined) {
-        const { manifest, ...rest } = a;
-        return rest;
-      }
-      return a;
-    });
-    let payload = { addons: cleaned };
+    let payload = { addons: activeAddons };
     if (window.CompressionStream) payload = await buildCompressedPayload(payload);
 
     const res = await fetch(`${API_BASE}/api/addons/set`, {
@@ -2378,8 +2372,7 @@ $('btnDownloadBackup').addEventListener('click', () => {
   const a = document.createElement('a'); 
   a.href = URL.createObjectURL(new Blob([$('backupText').value], { type: 'application/json' })); 
   a.download = `stremio-addons.json`; 
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  a.click(); 
   toast('Download started', 'success'); 
 });
 
@@ -2617,7 +2610,7 @@ const TRANSLATIONS = {
     restoreBackup: 'Restore from Backup',
     stream: 'Stream',
     catalog: 'Catalog',
-    typeSubtitle: 'Subtitle',
+    subtitle: 'Subtitle',
     other: 'Other',
     loading: 'Loading…',
     fetchingCloud: 'Fetching your addon collection from Cloud…',
@@ -2720,7 +2713,7 @@ const TRANSLATIONS = {
     restoreBackup: 'Restaurează din Backup',
     stream: 'Stream',
     catalog: 'Catalog',
-    typeSubtitle: 'Subtitrare',
+    subtitle: 'Subtitrare',
     other: 'Altul',
     loading: 'Se încarcă…',
     fetchingCloud: 'Se descarcă colecția de addon-uri din Cloud…',
@@ -3254,18 +3247,12 @@ function renderDiscoverGrid() {
     installBtn.textContent = isInstalled ? t('installed') : t('install');
     installBtn.disabled = isInstalled;
     if (!isInstalled && url) {
-      installBtn.addEventListener('click', async (e) => {
+      installBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        installRecommendedAddon(rec, url);
+        installBtn.textContent = t('installed');
         installBtn.disabled = true;
-        installBtn.textContent = '…';
-        const ok = await installRecommendedAddon(rec, url);
-        if (ok) {
-          installBtn.textContent = t('installed');
-          installBtn.className = 'btn btn-ghost';
-        } else {
-          installBtn.textContent = t('install');
-          installBtn.disabled = false;
-        }
+        installBtn.className = 'btn btn-ghost';
         installBtn.style.cssText = 'padding:5px 14px;font-size:.8rem;';
       });
     }
@@ -3275,33 +3262,12 @@ function renderDiscoverGrid() {
   });
 }
 
-async function installRecommendedAddon(rec, url) {
-  // Fetch manifest SERVER-SIDE to avoid CORS issues with addon servers.
-  // Stremio's cloud API requires a valid manifest for each addon.
-  const addonName = rec.name || 'Addon';
-  try {
-    const res = await fetch(API_BASE + '/api/recommendations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ transportUrl: url }),
-    });
-    const data = await res.json();
-    if (data.ok && data.manifest) {
-      addons.push({ transportUrl: url, manifest: data.manifest });
-    } else {
-      throw new Error(data.error || 'Manifest not available');
-    }
-  } catch (err) {
-    // If server-side manifest fetch also fails, do NOT add the addon.
-    // Adding without manifest causes Stremio API rejection.
-    toast(addonName + ': ' + err.message, 'error');
-    return false;
-  }
+function installRecommendedAddon(rec, url) {
+  const addon = rec.transportUrl ? rec : { transportUrl: url, manifest: rec.manifest || rec };
+  addons.push(addon);
   renderList();
   markChanged();
-  toast(addonName + ' ' + t('installed').toLowerCase(), 'success');
-  return true;
+  toast(name + ' ' + t('installed').toLowerCase(), 'success');
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -3358,6 +3324,7 @@ $('btnDoImport').addEventListener('click', async () => {
 const healthHistory = JSON.parse(localStorage.getItem('addonHealthHistory') || '{}');
 let lastHealthCheckTime = parseInt(localStorage.getItem('lastHealthCheckTime') || '0');
 
+const originalRunBrokenLinkCheck = runBrokenLinkCheck;
 runBrokenLinkCheck = async function() {
   try {
     const res = await apiFetch('/api/addons/check-links', {});
@@ -3650,7 +3617,20 @@ applyTranslations();
 updateUndoRedoUI();
 
 
-loadAddons();
+(function loadSortable() {
+  if (typeof Sortable === 'undefined' || !Sortable.create) {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+    // TODO: Compute SRI hash for SortableJS 1.15.2 from cdn.jsdelivr.net
+    // s.integrity = 'sha384-COULD_NOT_COMPUTE_RUNTIME';
+    s.crossOrigin = 'anonymous';
+    s.onload = () => { loadAddons(); };
+    s.onerror = () => { window.Sortable = { create: () => ({ destroy: () => {} }) }; toast('Drag-and-drop failed to load. Please refresh the page.', 'error'); loadAddons(); };
+    document.head.appendChild(s);
+  } else {
+    loadAddons();
+  }
+})();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -3709,7 +3689,7 @@ function openCinemetaSettings(url) {
 
   // Only run detection when there's something to inspect (manifest has resources or catalogs)
   const hasManifestData = (manifest.resources && manifest.resources.length > 0) ||
-                          (manifest.catalogs && manifest.catalogs.length > 0);
+                          (manifest.catalogs && manifest.catalogs.length >= 0);
 
   if (hasManifestData) {
     const current = detectCinemetaPatches(manifest);
@@ -3825,7 +3805,8 @@ $('btnResetCinemeta').addEventListener('click', async () => {
       markChanged();
       
       // 4. Force the UI to show the Save Bar just in case deep-compare misses it
-      markChanged();
+      showSaveBar();
+      $('changesCount').textContent = "1+";
 
       toast('Cinemeta restored! Click Save & Apply.', 'success');
     } else {
