@@ -51,7 +51,16 @@ module.exports = async (req, res) => {
 
   try {
     const result = await stremioAPI.cloudGetAddons(authKey);
-    res.status(200).json({ ok: true, ...result });
+    // Sanitize: strip null/undefined manifest fields from addons loaded from cloud.
+    // Prevents re-saving broken manifests back to Stremio's API.
+    const addons = (result.addons || []).map(a => {
+      if (a.manifest === null || a.manifest === undefined) {
+        const { manifest, ...rest } = a;
+        return rest;
+      }
+      return a;
+    });
+    res.status(200).json({ ok: true, addons });
   } catch (err) {
     const safeErr = sanitizeError(err, 'addonGet');
     await logEvent('error', 'addons_get_failed', { message: err.message });

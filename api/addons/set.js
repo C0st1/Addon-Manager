@@ -103,11 +103,22 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Sanitize addons: remove null/undefined manifest fields before forwarding to Stremio.
+  // Stremio's API rejects any addon where manifest is explicitly null with:
+  // "invalid type: null, expected struct Manifest"
+  const sanitized = addons.map(a => {
+    if (a.manifest === null || a.manifest === undefined) {
+      const { manifest, ...rest } = a;
+      return rest;
+    }
+    return a;
+  });
+
   // Sliding session renewal
   refreshSession(req, res);
 
   try {
-    const result = await stremioAPI.cloudSetAddons(addons, authKey);
+    const result = await stremioAPI.cloudSetAddons(sanitized, authKey);
     res.status(200).json({ ok: true, result });
   } catch (err) {
     const safeErr = sanitizeError(err, 'addonSet');
